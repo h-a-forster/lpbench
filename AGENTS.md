@@ -45,8 +45,9 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 | `src/lpbench/cli.py` | `versions` (done); `fetch`, `prepare`, `reference`, `plan`, `run`, `status`, `report` exit 2 until implemented | partial |
 | `src/lpbench/versions.py` | library versions, SCIP/HiGHS lib versions, platform, git SHA | done |
 | `src/lpbench/config.py` | StudyConfig, validation, config hash | M4 |
-| `src/lpbench/lpmodel.py` | CanonicalLP, HiGHS extraction, permutations, MPS output | M1 |
-| `src/lpbench/verify.py` | residuals, dual objective, gap, evaluation floor | M1 |
+| `src/lpbench/lpmodel.py` | CanonicalLP, HiGHS extraction, permutations, exact free-MPS writer | done (M1) |
+| `src/lpbench/verify.py` | residuals, dual objective, gap, evaluation floor | done (M1) |
+| `src/lpbench/synthetic.py` | hand-built and KKT-generated LPs with known optima | done (M1) |
 | `src/lpbench/netlib_emps.py` | netlib compressed format expander with checksums | M2 |
 | `src/lpbench/instances.py`, `download.py` | suites, manifests, caps, checksummed download | M2 |
 | `src/lpbench/solvers/` | adapters (highs, ortools, scip), registry with tolerance table | M3 |
@@ -89,15 +90,14 @@ uv run python scripts/run_study.py --config full --out runs/full     # several h
 - **Done (M0):** scaffold (uv, hatchling, pinned solvers, lock, CI, hygiene files),
   `lpbench versions`, environment tests for all 7 configurations through the raw libraries,
   DESIGN.md, draft configs.
+- **Done (M1):** `lpmodel.py` (CanonicalLP, extraction from HiGHS with free rows dropped,
+  seeded permutations keyed by (seed, name, k), npz storage, exact free-format MPS writer
+  without the objective constant), `verify.py` (residuals, dual objective, relative gap,
+  evaluation floor), `synthetic.py` (all row/bound types LP with exact optimum, KKT-built
+  random LPs). Tests: `tests/test_verify.py`, `tests/test_lpmodel.py`.
 - **Findings from probing the wheels (2026-10-24), to re-check in M3:** HiGHS HiPO is not
   available in the highspy 1.15.1 wheel (built without BLAS/METIS); `solver="ipm"` maps to
   IPX; HiPDLP declared "Optimal" on a 2x2 LP at 1.05x its own relative primal tolerance;
   OR-Tools returns `INVALID_SOLVER_PARAMETERS` for bad option strings; SCIP needs presolve
   off for duals.
-- **Next: M1** `lpmodel.py` + `verify.py` with the tests of DESIGN 6.1. Then M2 (netlib
-  expander, MIPLIB manifest, fetch, prepare, Koch reference values transcribed from the
-  open-access ZIB-Report 03-05 with readme cross-check).
-- **Open questions:** whether the Koch (2004) table can be transcribed reliably (fallback:
-  netlib readme values, documented); the share of first-order units that hit the 10 s time
-  limit, which decides whether the quick study fits 45 minutes (M5 pilot, cut order in
-  DESIGN 8).
+- **Next: M2** netlib expander, MIPLIB manifest, fetch, prepare, Koch reference values.
