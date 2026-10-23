@@ -53,7 +53,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 | `src/lpbench/prepare.py` | `fetch`, `prepare`, canonical npz and MPS cache | done (M2) |
 | `src/lpbench/data/` | netlib reference values (Koch 2004), MIPLIB manifest, checksums | done (M2) |
 | `scripts/build_miplib_manifest.py` | parses the MIPLIB benchmark table once | done (M2) |
-| `src/lpbench/solvers/` | adapters (highs, ortools, scip), registry with tolerance table | M3 |
+| `src/lpbench/solvers/` | adapters (highs, ortools, scip), registry with tolerance table, fake adapters for harness tests | done (M3) |
 | `src/lpbench/worker.py`, `runner.py` | persistent workers, hard deadlines, checkpoints | M4 |
 | `src/lpbench/reference.py` | consensus references for MIPLIB relaxations | M5 |
 | `src/lpbench/stats.py` | SGM, bootstrap, profiles with bands, ranks, Holm | M6 |
@@ -111,4 +111,15 @@ uv run python scripts/run_study.py --config full --out runs/full     # several h
   files 16.6 MB, checksums recorded) and `prepare`. HiGHS dual simplex (raw library, default
   options) matches the Koch value to <= 1e-10 relative on all 92 netlib problems once the
   E226 objective constant is accounted for (DESIGN 12, item 2).
-- **Next: M3** solver adapters and registry (DESIGN 6.4 items 1-4), parser cross-check.
+- **Done (M3):** adapters for all 7 configs (`src/lpbench/solvers/`), registry with the
+  per-epsilon option table, fake adapters (`test-sleep`, `test-crash`, ...). Tests
+  (`tests/test_adapters.py`): hand-built LP with every row and bound type (min and max
+  source) and KKT-generated LPs pass at 1e-6 for every config (first-order: 1e-4),
+  infeasible/unbounded status mapping, invalid options give CONFIG_ERROR, option alignment,
+  OR-Tools and SCIP parse our MPS exactly (synthetic and 5 netlib), 10 netlib instances
+  verified by each simplex/IPM config, highs-dsimplex matches Koch on all 92, TIME_LIMIT at
+  0.5 s for every config. Findings: HiGHS PDLP needs `kkt_tolerance`; GLOP reports
+  unbounded as infeasible through MPSolver; SCIP singleton-row duals need reconstruction
+  (DESIGN 12, items 6-9).
+- **Next: M4** config blocks/units, persistent worker pool with hard deadlines, runner with
+  checkpoints, `run`, `status`, `plan`, `scripts/run_study.py`.

@@ -241,8 +241,8 @@ tightened to epsilon. All configs get threads=1 and the time limit. The exact op
 |---|---|
 | highs-dsimplex | defaults (`primal/dual_feasibility_tolerance` 1e-7 are already tighter) |
 | highs-ipx | defaults (`ipm_optimality_tolerance` 1e-8, crossover on) |
-| highs-pdlp, highs-hipdlp | `pdlp_optimality_tolerance = 1e-6` (library default 1e-7) |
-| ortools-glop | defaults (`primal/dual_feasibility_tolerance` 1e-8) |
+| highs-pdlp, highs-hipdlp | `kkt_tolerance = 1e-6` (library default 1e-7; see section 12, item 6) |
+| ortools-glop | defaults (`primal/dual_feasibility_tolerance` 1e-8), `random_seed` |
 | ortools-pdlp | `eps_optimal_absolute = eps_optimal_relative = 1e-6`, `optimality_norm: L_INF` |
 | scip-soplex | defaults (`numerics/feastol` 1e-6, `dualfeastol` 1e-7); at 1e-8 both set to 1e-8 |
 
@@ -570,3 +570,24 @@ Recorded as they were made during implementation.
 5. **(M2) Raw-file parsing.** MIPLIB files are decompressed and read by HiGHS (the SCIP
    wheel cannot read `.gz`); a check over all 114 quick instances found HiGHS and SCIP agree
    on every variable bound, including integer variables without explicit bounds.
+6. **(M3) HiGHS PDLP tolerance option.** In highspy 1.15.1 both PDLP solvers terminate on the
+   KKT tolerances (primal/dual feasibility, residual and optimality tolerances, all 1e-7 by
+   default). Setting `pdlp_optimality_tolerance = 1e-4` did not loosen `pdlp` (same 1,080
+   iterations on SC105 as the default) and made `hipdlp` stop with status Unknown;
+   `kkt_tolerance` sets all of them and behaves as intended (720 and 520 iterations at 1e-4).
+   The adapters therefore set `kkt_tolerance = eps` for `highs-pdlp` and `highs-hipdlp`.
+7. **(M3) Status set.** `INF_OR_UNBD` was added to the status enum (HiGHS and SCIP report
+   it). GLOP's presolve reports an unbounded LP as INFEASIBLE through MPSolver (with
+   `use_preprocessing: false` it reports UNBOUNDED), so a GLOP "infeasible" is mapped to
+   `INF_OR_UNBD`. Libraries that do not say why they stopped (OR-Tools) get `TIME_LIMIT` when
+   the solve used at least 98% of the limit and `NUMERICAL` otherwise.
+8. **(M3) OR-Tools interface.** The MPS file is read with OR-Tools' own reader
+   (`model_builder`) and loaded into an MPSolver (`pywraplp`), because only MPSolver exposes
+   iteration counts. Both steps are outside the timed region.
+9. **(M3) SCIP duals of singleton rows.** SCIP keeps a one-variable linear constraint as a
+   bound in its LP: `getDualsolLinear` returns 0 for such rows, and `getDualSolVal` attributes
+   the variable's whole reduced cost to the row even when the variable's own bound is the
+   active one (wrong sign on E226). The adapter splits the reduced cost itself (own bound if it
+   is at least as tight as the row's implied bound on the active side, otherwise the tightest
+   singleton row). Found by the verifier on a generated LP and on E226; recorded as an
+   interface subtlety, not a solver bug.
