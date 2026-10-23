@@ -42,9 +42,9 @@ def test_cli_versions_json(capsys: pytest.CaptureFixture[str]) -> None:
         assert info["distributions"][name], f"{name} not installed"
 
 
-def test_cli_planned_command_exits_2(capsys: pytest.CaptureFixture[str]) -> None:
-    assert cli.main(["report"]) == 2
-    assert "not implemented" in capsys.readouterr().err
+def test_cli_report_needs_a_manifest(tmp_path, capsys: pytest.CaptureFixture[str]) -> None:  # type: ignore[no-untyped-def]
+    assert cli.main(["report", str(tmp_path)]) == 1
+    assert "manifest.json" in capsys.readouterr().err
 
 
 def test_cli_version_flag() -> None:
