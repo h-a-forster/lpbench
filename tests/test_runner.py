@@ -121,6 +121,25 @@ def test_hard_deadline_kills_sleeping_worker(
         assert recs[u.unit_id]["status"] == "OPTIMAL"  # the respawned worker carries on
 
 
+def test_external_time_limit_kills_at_tl_plus_grace(
+    cache: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Configs in EXTERNAL_TIME_LIMIT are stopped at TL + grace and scored TIME_LIMIT."""
+    import lpbench.runner as runner_mod
+
+    monkeypatch.setenv("LPBENCH_TEST_SLEEP_S", "120")
+    monkeypatch.setattr(runner_mod, "EXTERNAL_TIME_LIMIT", frozenset({"test-sleep"}))
+    insts = _instances(cache, 1)
+    units = [Unit("main", insts[0], 0, "test-sleep", 1e-6)] + _units(insts, ["test-ok"])
+    out = tmp_path / "run"
+    Runner(_cfg(tl=0.5, extra=60.0), out, units, workers=1).run()
+    recs = load_records(out)
+    r = recs[units[0].unit_id]
+    assert r["status"] == "TIME_LIMIT" and r["raw_status"] == "external time limit"
+    assert 0.5 + runner_mod.EXTERNAL_TL_GRACE_S <= r["solve_wall_s"] < 20.0
+    assert recs[units[1].unit_id]["status"] == "OPTIMAL"
+
+
 def test_crashing_worker_is_recorded_and_replaced(cache: Path, tmp_path: Path) -> None:
     insts = _instances(cache, 2)
     units = [

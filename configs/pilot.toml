@@ -1,0 +1,44 @@
+# Pilot for the quick study: a ~10% stratified sample (nnz tertiles per suite) with the
+# quick study's solver settings. Its records feed `lpbench plan --config quick --pilot ...`.
+name = "pilot"
+workers = 3
+time_limit_s = 10.0
+hard_deadline_factor = 1.5
+hard_deadline_extra_s = 10.0
+download_cap_bytes = 2_000_000_000
+seed = 20261024
+
+configs = [
+    "highs-dsimplex", "highs-ipx", "highs-pdlp", "highs-hipdlp",
+    "ortools-glop", "ortools-pdlp", "scip-soplex",
+]
+first_order = ["highs-pdlp", "highs-hipdlp", "ortools-pdlp"]
+verify_eps = [1e-4, 1e-6, 1e-8]
+
+[suites.netlib]
+exclude = ["qap8", "qap12", "qap15", "stocfor3", "truss", "standgub"]
+
+[suites.miplib]
+list = "benchmark-v2"
+max_nnz = 100_000
+
+[[blocks]]
+name = "main"
+subset = { per_suite = 10, strata = "nnz_tertiles", salt = "pilot" }
+configs = "all"
+eps = 1e-6
+perms = [0]
+
+[[blocks]]
+name = "eps1e-4"
+suites = ["netlib"]
+subset = { per_suite = 10, strata = "nnz_tertiles", salt = "pilot" }
+configs = "first_order"
+eps = 1e-4
+perms = [0]
+
+[stats]
+bootstrap_resamples = 10_000
+shift_s = 1.0
+shift_sensitivity_s = [0.1, 10.0]
+penalty = "par1"

@@ -291,7 +291,6 @@ def test_highs_simplex_matches_koch_on_all_netlib() -> None:
     "config",
     [
         "highs-dsimplex",
-        "highs-pdlp",
         "highs-hipdlp",
         "ortools-pdlp",
         "scip-soplex",
@@ -308,3 +307,38 @@ def test_time_limit_is_respected(config: str) -> None:
     assert res.status == SolverStatus.TIME_LIMIT, res.raw_status
     assert res.solve_wall_s < tl * 1.5 + 10.0
     assert elapsed < 60.0
+
+
+def test_highs_pdlp_time_limit_is_external() -> None:
+    """highs-pdlp gets no in-library time limit; the runner enforces it (DESIGN 12, item 14)."""
+    from lpbench.solvers.base import EXTERNAL_TIME_LIMIT
+
+    assert "highs-pdlp" in EXTERNAL_TIME_LIMIT
+    assert "time_limit" not in make_adapter("highs-pdlp").options(1e-6, 10.0, 1)
+    assert make_adapter("highs-hipdlp").options(1e-6, 10.0, 1)["time_limit"] == 10.0
+
+
+@pytest.mark.slow
+def test_highs_pdlp_finishing_after_the_limit_is_time_limit() -> None:
+    lp, mps = _netlib_cached("DFL001")
+    res = make_adapter("highs-pdlp").solve(SolveRequest("highs-pdlp", mps, 1e-4, 0.05, seed=1))
+    assert res.solve_cpu_s > 0.05 and res.status == SolverStatus.TIME_LIMIT
+
+
+@pytest.mark.slow
+def test_upstream_highs_pdlp_time_limit_stops_early() -> None:
+    """Upstream behaviour behind EXTERNAL_TIME_LIMIT (docs/repros/highs-pdlp-time-limit.md):
+    with time_limit = 10 s, raw HiGHS PDLP reports "Time limit reached" well under 10 s. If
+    this test fails, the behaviour has changed and the workaround should be revisited."""
+    import highspy
+
+    _, mps = _netlib_cached("AGG2")
+    h = highspy.Highs()
+    h.setOptionValue("output_flag", False)
+    h.readModel(str(mps))
+    h.setOptionValue("solver", "pdlp")
+    h.setOptionValue("time_limit", 10.0)
+    t0 = time.perf_counter()
+    h.run()
+    elapsed = time.perf_counter() - t0
+    assert h.getModelStatus() == highspy.HighsModelStatus.kTimeLimit and elapsed < 2.0

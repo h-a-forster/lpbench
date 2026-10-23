@@ -113,4 +113,11 @@ def time_limit_status(elapsed: float, time_limit_s: float) -> bool:
     return elapsed >= 0.98 * time_limit_s
 
 
+#: Configs whose in-library time limit cannot be used (DESIGN 12, item 14). The adapter does
+#: not pass the limit; the runner kills the worker at ``time_limit + EXTERNAL_TL_GRACE_S`` and
+#: records TIME_LIMIT, and a solve that finishes after the limit is scored as TIME_LIMIT.
+EXTERNAL_TIME_LIMIT = frozenset({"highs-pdlp"})
+EXTERNAL_TL_GRACE_S = 5.0
+
+
 AdapterFactory = Callable[[], Adapter]

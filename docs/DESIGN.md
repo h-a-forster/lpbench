@@ -241,7 +241,7 @@ tightened to epsilon. All configs get threads=1 and the time limit. The exact op
 |---|---|
 | highs-dsimplex | defaults (`primal/dual_feasibility_tolerance` 1e-7 are already tighter) |
 | highs-ipx | defaults (`ipm_optimality_tolerance` 1e-8, crossover on) |
-| highs-pdlp, highs-hipdlp | `kkt_tolerance = 1e-6` (library default 1e-7; see section 12, item 6) |
+| highs-pdlp, highs-hipdlp | `kkt_tolerance = 1e-6` (library default 1e-7; see section 12, item 6); `highs-pdlp` gets no `time_limit` (enforced by the runner, item 14) |
 | ortools-glop | defaults (`primal/dual_feasibility_tolerance` 1e-8), `random_seed` |
 | ortools-pdlp | `eps_optimal_absolute = eps_optimal_relative = 1e-6`, `optimality_norm: L_INF` |
 | scip-soplex | defaults (`numerics/feastol` 1e-6, `dualfeastol` 1e-7); at 1e-8 both set to 1e-8; presolving, heuristics, separation, propagation and symmetry handling off (section 12, item 12) |
@@ -617,3 +617,12 @@ Recorded as they were made during implementation.
     at `feastol` 1e-9 and was excluded from the consensus by the KKT filter. This is
     recorded as an observation only; no bug-claim protocol (minimal repro, adapter
     exclusion) was completed.
+14. **(M5) External time limit for `highs-pdlp`.** In the highspy 1.15.1 wheel on Windows,
+    HiGHS PDLP (cuPDLP-C) stops with "Time limit reached" long before any finite
+    `time_limit` has passed (10 s limit: stopped after 0.02 s). The pilot found it: 26 of
+    30 `highs-pdlp` units "timed out" within 0.26 s. A standalone reproduction and the
+    adapter-exclusion argument are in `docs/repros/highs-pdlp-time-limit.md`. The adapter
+    no longer passes `time_limit` for this config. The runner kills the worker at
+    `time_limit + 5 s` (`EXTERNAL_TL_GRACE_S`) and records TIME_LIMIT, and a solve that ends
+    after the limit is scored TIME_LIMIT. `highs-hipdlp` is not affected and keeps the
+    in-library limit.
