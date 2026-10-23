@@ -44,12 +44,15 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 |---|---|---|
 | `src/lpbench/cli.py` | `versions` (done); `fetch`, `prepare`, `reference`, `plan`, `run`, `status`, `report` exit 2 until implemented | partial |
 | `src/lpbench/versions.py` | library versions, SCIP/HiGHS lib versions, platform, git SHA | done |
-| `src/lpbench/config.py` | StudyConfig, validation, config hash | M4 |
+| `src/lpbench/config.py` | StudyConfig, validation, config hash | done (M2; blocks used from M4) |
 | `src/lpbench/lpmodel.py` | CanonicalLP, HiGHS extraction, permutations, exact free-MPS writer | done (M1) |
 | `src/lpbench/verify.py` | residuals, dual objective, gap, evaluation floor | done (M1) |
 | `src/lpbench/synthetic.py` | hand-built and KKT-generated LPs with known optima | done (M1) |
-| `src/lpbench/netlib_emps.py` | netlib compressed format expander with checksums | M2 |
-| `src/lpbench/instances.py`, `download.py` | suites, manifests, caps, checksummed download | M2 |
+| `src/lpbench/netlib_emps.py` | netlib compressed format expander with checksums | done (M2) |
+| `src/lpbench/instances.py`, `download.py` | suites, manifests, caps, checksummed download | done (M2) |
+| `src/lpbench/prepare.py` | `fetch`, `prepare`, canonical npz and MPS cache | done (M2) |
+| `src/lpbench/data/` | netlib reference values (Koch 2004), MIPLIB manifest, checksums | done (M2) |
+| `scripts/build_miplib_manifest.py` | parses the MIPLIB benchmark table once | done (M2) |
 | `src/lpbench/solvers/` | adapters (highs, ortools, scip), registry with tolerance table | M3 |
 | `src/lpbench/worker.py`, `runner.py` | persistent workers, hard deadlines, checkpoints | M4 |
 | `src/lpbench/reference.py` | consensus references for MIPLIB relaxations | M5 |
@@ -100,4 +103,12 @@ uv run python scripts/run_study.py --config full --out runs/full     # several h
   IPX; HiPDLP declared "Optimal" on a 2x2 LP at 1.05x its own relative primal tolerance;
   OR-Tools returns `INVALID_SOLVER_PARAMETERS` for bad option strings; SCIP needs presolve
   off for duals.
-- **Next: M2** netlib expander, MIPLIB manifest, fetch, prepare, Koch reference values.
+- **Done (M2):** netlib expander (all 92 files: zero checksum errors; constraint nonzeros
+  equal Koch's counts and readme nonzeros including the cost row for every problem), Koch
+  (2004) exact values transcribed (`src/lpbench/data/netlib_reference.csv`, cross-checked
+  against the readme to 1e-6 except the 24 problems the readme flags), MIPLIB manifest (240;
+  114 with nnz <= 1e5, 210 with nnz <= 1e6), `fetch` (92 netlib files 7.8 MB, 114 MIPLIB
+  files 16.6 MB, checksums recorded) and `prepare`. HiGHS dual simplex (raw library, default
+  options) matches the Koch value to <= 1e-10 relative on all 92 netlib problems once the
+  E226 objective constant is accounted for (DESIGN 12, item 2).
+- **Next: M3** solver adapters and registry (DESIGN 6.4 items 1-4), parser cross-check.

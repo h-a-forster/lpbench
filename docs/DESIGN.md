@@ -1,7 +1,7 @@
 # lpbench design
 
-Status: v0.0.1, design only. Nothing below is implemented yet except the scaffold (M0). Every
-deviation made while implementing must be recorded in section 12 in the same change.
+Status: being implemented milestone by milestone (see AGENTS.md, "Status and next steps").
+Every deviation made while implementing is recorded in section 12 in the same change.
 
 ## 1. Question and contribution
 
@@ -548,4 +548,25 @@ benchopt (BSD-3; generic benchmark runner, no LP verification); the MIPLIB solut
 
 ## 12. Deviations
 
-None yet.
+Recorded as they were made during implementation.
+
+1. **(M1) Free rows and the objective constant.** Rows free on both sides are dropped when a
+   CanonicalLP is extracted (they constrain nothing and have a zero dual); the count is
+   recorded. The MPS files given to solvers never contain the objective constant `c0` and are
+   always minimisation problems: `c0` is added back by lpbench, which avoids the
+   reader-dependent sign convention of an objective-row RHS. Rows and columns are named
+   `R<i>`, `C<j>` so adapters can map solutions by name.
+2. **(M2) Netlib reference values exclude the objective constant.** The readme and Koch
+   values are `c^T x` without the objective-row RHS constant. Only E226 has one (RHS -7.113,
+   read by HiGHS as `c0 = 7.113`); the canonical reference is the published value plus `c0`.
+3. **(M2) Readme discrepancies.** MAROS-R7 is served as 746,489 bytes, not the 4,812,587
+   bytes the readme lists, and BOEING1's file declares 352 rows, not 351. Both pass every
+   checksum line, match Koch's nonzero counts, and HiGHS reproduces Koch's optimum on both.
+   The size check therefore uses Koch's constraint-matrix nonzeros (`koch_nnz`, reproduced
+   for all 92 problems) and the readme's nonzeros including the cost row (also reproduced
+   for all 92), not the byte counts.
+4. **(M2) Checksums live in `src/lpbench/data/checksums.csv`** (suite, file, bytes, sha256)
+   for both suites instead of extra columns in the MIPLIB manifest.
+5. **(M2) Raw-file parsing.** MIPLIB files are decompressed and read by HiGHS (the SCIP
+   wheel cannot read `.gz`); a check over all 114 quick instances found HiGHS and SCIP agree
+   on every variable bound, including integer variables without explicit bounds.
