@@ -98,6 +98,8 @@ class ScipAdapter:
             "separating": "off",
             "propagating": "off",
             "lp/threads": 1,
+            # symmetry handling adds SST cuts to a pure LP, which changes the feasible set
+            "misc/usesymmetry": 0,
             "limits/time": float(time_limit_s),
             "randomization/randomseedshift": int(seed) % 2_147_483_647,
             "randomization/lpseed": int(seed) % 2_147_483_647,

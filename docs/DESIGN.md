@@ -244,7 +244,7 @@ tightened to epsilon. All configs get threads=1 and the time limit. The exact op
 | highs-pdlp, highs-hipdlp | `kkt_tolerance = 1e-6` (library default 1e-7; see section 12, item 6) |
 | ortools-glop | defaults (`primal/dual_feasibility_tolerance` 1e-8), `random_seed` |
 | ortools-pdlp | `eps_optimal_absolute = eps_optimal_relative = 1e-6`, `optimality_norm: L_INF` |
-| scip-soplex | defaults (`numerics/feastol` 1e-6, `dualfeastol` 1e-7); at 1e-8 both set to 1e-8 |
+| scip-soplex | defaults (`numerics/feastol` 1e-6, `dualfeastol` 1e-7); at 1e-8 both set to 1e-8; presolving, heuristics, separation, propagation and symmetry handling off (section 12, item 12) |
 
 Solvers define tolerances differently (absolute or relative, scaled or unscaled, L2 or
 L-infinity). A solver can therefore stop at its own epsilon and still fail ours. That is a
@@ -601,3 +601,19 @@ Recorded as they were made during implementation.
     instances that have a reference value (all of netlib; MIPLIB instances with a consensus
     value), rather than from instances verified by some config in the pilot. This keeps the
     draw independent of benchmark outcomes and fixed before the run.
+12. **(M5) SCIP symmetry handling off.** With presolving off, SCIP's default symmetry
+    handling still adds symmetry-breaking (SST) linear constraints to a pure LP, so the LP
+    it solves is not the LP we gave it and its dual vector has extra entries (bnatt400:
+    6801 constraints for 5614 rows; a 6-row cyclic LP gets 6 extra). The adapter sets
+    `misc/usesymmetry = 0`. Found by the reference pass, where 45 `scip-soplex` solutions had
+    no usable dual; after the change all but two pass the KKT check at 1e-8. A test
+    (`test_scip_symmetry_handling_is_off`) reproduces the behaviour with the option on. This
+    is a default suited to MIP, not a solver bug.
+13. **(M5) Reference pass outcome.** 112 of 114 MIPLIB relaxations have a consensus value
+    (108 with all three configs agreeing). `dano3_3` and `dano3_5` have none: only
+    `ortools-glop` finished within 60 s, so they keep no reference and are not eligible for
+    the subsets (item 11); the KKT check still verifies them in the main block. On
+    `nu25-pr12`, `scip-soplex` returned "optimal" with a relative primal residual of 2.4e-3
+    at `feastol` 1e-9 and was excluded from the consensus by the KKT filter. This is
+    recorded as an observation only; no bug-claim protocol (minimal repro, adapter
+    exclusion) was completed.

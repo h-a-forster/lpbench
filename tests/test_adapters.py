@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 
 from lpbench.config import CONFIG_IDS
-from lpbench.lpmodel import INF, CanonicalLP, load_npz, write_mps
+from lpbench.lpmodel import INF, CanonicalLP, load_npz, make_lp, write_mps
 from lpbench.solvers.base import SolveRequest, SolverStatus
 from lpbench.solvers.registry import FIRST_ORDER, make_adapter, option_table
 from lpbench.synthetic import KnownLP, all_types_lp, infeasible_lp, random_known_lp, unbounded_lp
@@ -92,6 +92,25 @@ def test_invalid_options_are_config_errors(tmp_path: Path) -> None:
         assert OrtoolsAdapter(c).solve(req, "no_such_field: 1").status == SolverStatus.CONFIG_ERROR
     assert ScipAdapter().solve(req, {"no/such/param": 1}).status == SolverStatus.CONFIG_ERROR
     assert ScipAdapter().solve(req, {"limits/time": "abc"}).status == SolverStatus.CONFIG_ERROR
+
+
+def test_scip_symmetry_handling_is_off(tmp_path: Path) -> None:
+    """SCIP's default symmetry handling adds SST cuts even to a pure LP; with it on, a cyclic
+    LP gets n extra constraints and the dual vector no longer matches the rows."""
+    n = 6
+    A = np.zeros((n, n))
+    for i in range(n):
+        A[i, i] = A[i, (i + 1) % n] = 1.0
+    lp = make_lp("cyc", A, -np.ones(n), [-INF] * n, [1.0] * n, [0.0] * n, [1.0] * n)
+    path = tmp_path / "cyc.mps"
+    write_mps(lp, path)
+    ad = make_adapter("scip-soplex")
+    assert ad.options(1e-6, 10.0, 1)["misc/usesymmetry"] == 0
+    res = ad.solve(SolveRequest("scip-soplex", path, 1e-6, 10.0, seed=1))
+    assert res.status == SolverStatus.OPTIMAL and res.y is not None and res.y.shape == (n,)
+    assert verify(lp, res.x, res.y).passes(1e-8)
+    on = ad.solve(SolveRequest("scip-soplex", path, 1e-6, 10.0, seed=1), {"misc/usesymmetry": 7})
+    assert on.y is not None and on.y.shape == (2 * n,)  # the behaviour the option avoids
 
 
 def test_option_table_alignment() -> None:

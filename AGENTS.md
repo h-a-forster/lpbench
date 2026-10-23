@@ -131,5 +131,15 @@ uv run python scripts/run_study.py --config full --out runs/full     # several h
   `status`, `scripts/run_study.py`. Tests (`tests/test_runner.py`): kill-and-resume (no
   duplicates, finished records untouched), sleeping fake adapter killed at the deadline,
   `os._exit` crash, permutation k = 1 gives the k = 0 objective, config validation.
-- **Next: M5** `reference.py` (MIPLIB consensus), pilot on a ~10% stratified sample, plan
-  projection for quick (apply the DESIGN 8 cuts if > 45 min).
+- **Done (M5, reference part):** `reference.py` and `lpbench reference` (three simplex
+  configs at eps 1e-9, 60 s, as a normal checkpointed run in `runs/<config>-reference`).
+  Consensus for 112/114 MIPLIB relaxations in `src/lpbench/data/miplib_reference.csv`
+  (no value for dano3_3, dano3_5). Found and fixed: SCIP symmetry handling adds SST cuts to
+  pure LPs (DESIGN 12, items 12-13). Tests: `tests/test_reference.py`,
+  `test_scip_symmetry_handling_is_off`.
+- **Done (M6):** `stats.py` (SGM, PAR-k, percentile/BCa/two-level bootstrap, profiles with
+  pointwise and simultaneous bands, Wilcoxon + Holm, rank stability, Kendall tau, GSD).
+  Tests: `tests/test_stats.py` (hand values; slow: coverage of 95% intervals in 1000
+  simulated studies, Clopper-Pearson check).
+- **Next:** pilot on a ~10% stratified sample (`configs/pilot.toml`), plan projection for
+  quick (apply the DESIGN 8 cuts if > 45 min), then M7 (`report.py`) and the quick study.

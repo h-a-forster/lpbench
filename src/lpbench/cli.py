@@ -1,4 +1,4 @@
-"""Command-line interface. Subcommands not yet implemented exit with status 2."""
+"""Command-line interface."""
 
 from __future__ import annotations
 
@@ -9,12 +9,6 @@ from collections.abc import Sequence
 
 from lpbench import __version__
 from lpbench.versions import provenance
-
-#: Planned subcommands and the milestone that implements each (docs/DESIGN.md, section 10).
-PLANNED = {
-    "reference": ("compute consensus reference objectives", "M5"),
-    "report": ("build tables, figures and REPORT from a run directory", "M7"),
-}
 
 
 def _cmd_versions(args: argparse.Namespace) -> int:
@@ -134,6 +128,58 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_reference(args: argparse.Namespace) -> int:
+    from dataclasses import replace
+    from pathlib import Path
+
+    from lpbench.config import load_config
+    from lpbench.instances import miplib_instances
+    from lpbench.reference import build_reference_table, reference_config, write_reference_csv
+    from lpbench.runner import Runner, build_units, file_logger, load_records
+
+    cfg = load_config(args.config)
+    rcfg = reference_config(cfg)
+    # the reference pass verifies against nothing but the KKT conditions
+    insts = [
+        replace(i, reference=None, reference_source="")
+        for i in miplib_instances(cfg.miplib_max_nnz)
+    ]
+    units = build_units(rcfg, insts)
+    out = Path(args.out or f"runs/{rcfg.name}")
+    log = file_logger(out / "progress.log")
+    runner = Runner(rcfg, out, units, provenance=provenance(), log=log)
+    runner.run()
+    recs = [r for r in load_records(out).values() if r.get("config_hash") == rcfg.config_hash()]
+    rows = build_reference_table(insts, recs)
+    write_reference_csv(rows)
+    n_ref = sum(1 for r in rows if r.reference is not None)
+    log(f"consensus reference for {n_ref}/{len(rows)} MIPLIB instances")
+    for r in rows:
+        if r.reference is None:
+            log(
+                f"  no consensus: {r.name} ({r.note}; {r.n_optimal} optimal, "
+                f"{r.n_kkt_pass} KKT-pass)"
+            )
+    return 0
+
+
+def _cmd_report(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from lpbench.report import publish
+
+    run_dir = Path(args.run_dir)
+    if not (run_dir / "manifest.json").exists():
+        print(f"no manifest.json in {run_dir}", file=sys.stderr)
+        return 1
+    out = Path(args.publish or run_dir / "report")
+    res = publish(run_dir, out, B=args.bootstrap)
+    m = res["meta"]
+    print(f"report for {m['study']}: {m['units']} units -> {out}")
+    print("primary ranking: " + " < ".join(res["tables"]["primary_ranking"]))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lpbench",
@@ -173,13 +219,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--max-units", type=int, help="stop after this many units")
     p_run.set_defaults(func=_cmd_run)
 
+    p_ref = sub.add_parser("reference", help="consensus reference values for MIPLIB relaxations")
+    p_ref.add_argument("--config", default="quick", help="config name or path")
+    p_ref.add_argument("--out", help="run directory (default runs/<config>-reference)")
+    p_ref.set_defaults(func=_cmd_reference)
+
     p_status = sub.add_parser("status", help="progress of a run directory")
     p_status.add_argument("run_dir")
     p_status.set_defaults(func=_cmd_status)
 
-    for name, (summary, milestone) in PLANNED.items():
-        p = sub.add_parser(name, help=f"{summary} (planned, {milestone})")
-        p.set_defaults(func=None, milestone=milestone)
+    p_report = sub.add_parser("report", help="tables, figures and summary from a run directory")
+    p_report.add_argument("run_dir")
+    p_report.add_argument("--publish", help="output directory (default RUN_DIR/report)")
+    p_report.add_argument("--bootstrap", type=int, help="bootstrap resamples (default: config)")
+    p_report.set_defaults(func=_cmd_report)
     return parser
 
 
@@ -189,12 +242,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command is None:
         parser.print_help()
         return 0
-    if args.func is None:
-        print(
-            f"lpbench {args.command}: not implemented yet (milestone {args.milestone}).",
-            file=sys.stderr,
-        )
-        return 2
     return int(args.func(args))
 
 

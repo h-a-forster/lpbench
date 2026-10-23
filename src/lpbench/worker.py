@@ -84,7 +84,11 @@ def execute(task: dict[str, Any]) -> dict[str, Any]:
         read_wall_s=res.read_wall_s,
         options=res.options,
         message=res.message,
-        hidden_threads=bool(res.solve_wall_s > 0.05 and res.solve_cpu_s > 1.2 * res.solve_wall_s),
+        # process CPU clearly above wall time means more than one busy thread; the margin
+        # covers the coarse process-time clock on Windows (about 15.6 ms)
+        hidden_threads=bool(
+            res.solve_wall_s > 0.25 and res.solve_cpu_s > 1.2 * res.solve_wall_s + 0.05
+        ),
     )
     rss = _peak_rss_kb()
     if rss is not None:
