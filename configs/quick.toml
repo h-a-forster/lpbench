@@ -1,0 +1,62 @@
+# Quick study: sized for < 45 min wall on 3 workers (docs/DESIGN.md, section 8).
+# Draft until M4 implements config validation; keys may change, and DESIGN.md is updated with them.
+name = "quick"
+workers = 3
+time_limit_s = 10.0
+hard_deadline_factor = 1.5
+hard_deadline_extra_s = 10.0
+download_cap_bytes = 2_000_000_000
+seed = 20261024
+
+configs = [
+    "highs-dsimplex", "highs-ipx", "highs-pdlp", "highs-hipdlp",
+    "ortools-glop", "ortools-pdlp", "scip-soplex",
+]
+first_order = ["highs-pdlp", "highs-hipdlp", "ortools-pdlp"]
+verify_eps = [1e-4, 1e-6, 1e-8]
+
+[suites.netlib]
+exclude = ["qap8", "qap12", "qap15", "stocfor3", "truss", "standgub"]
+
+[suites.miplib]
+list = "benchmark-v2"
+max_nnz = 100_000
+
+# Main grid: every instance, every config, original order, epsilon = 1e-6.
+[[blocks]]
+name = "main"
+suites = ["netlib", "miplib"]
+configs = "all"
+eps = 1e-6
+perms = [0]
+
+# Tolerance sensitivity: first-order configs only (others have identical options at 1e-4).
+[[blocks]]
+name = "eps1e-4"
+suites = ["netlib"]
+configs = "first_order"
+eps = 1e-4
+perms = [0]
+
+# Performance variability: stratified subset, permutations 1..3 (k = 0 comes from "main").
+[[blocks]]
+name = "perm"
+subset = { per_suite = 15, strata = "nnz_tertiles" }
+configs = "all"
+eps = 1e-6
+perms = [1, 2, 3]
+
+# Machine noise: repeat the original order on a small subset.
+[[blocks]]
+name = "noise"
+subset = { per_suite = 5, strata = "nnz_tertiles" }
+configs = ["highs-dsimplex", "highs-ipx"]
+eps = 1e-6
+perms = [0]
+repeats = 2
+
+[stats]
+bootstrap_resamples = 10_000
+shift_s = 1.0
+shift_sensitivity_s = [0.1, 10.0]
+penalty = "par1"

@@ -1,0 +1,74 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "lpbench"
+version = "0.0.1"
+description = "An honest CPU benchmark of open-source LP solvers: every reported optimum independently verified, performance variability measured across seeds and permutations, bootstrap intervals on shifted geometric means and performance profiles."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+authors = [{ name = "lpbench contributors" }]
+keywords = [
+    "linear-programming", "benchmark", "highs", "or-tools", "scip", "pdlp", "simplex",
+    "interior-point", "performance-profiles", "bootstrap", "netlib", "miplib",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
+# Solver versions are pinned exactly: a benchmark result is only meaningful for the versions
+# that produced it. Bump them deliberately, in their own change, and re-run the study.
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+    "highspy==1.15.1",
+    "ortools==9.15.6755",
+    "pyscipopt==6.3.0",
+]
+
+[project.optional-dependencies]
+plot = ["matplotlib>=3.8"]
+
+[project.urls]
+Homepage = "https://github.com/h-a-forster/lpbench"
+Documentation = "https://github.com/h-a-forster/lpbench/tree/main/docs"
+Issues = "https://github.com/h-a-forster/lpbench/issues"
+Changelog = "https://github.com/h-a-forster/lpbench/blob/main/CHANGELOG.md"
+
+[project.scripts]
+lpbench = "lpbench.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "matplotlib>=3.8"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/lpbench"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/lpbench", "tests", "docs", "configs", "scripts", "README.md", "LICENSE",
+    "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "CITATION.cff",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]

@@ -1,0 +1,58 @@
+cff-version: 1.2.0
+message: "If you use lpbench, please cite it as below."
+title: lpbench
+abstract: >-
+  An honest CPU benchmark of open-source LP solvers (HiGHS, OR-Tools GLOP and
+  PDLP, SCIP/SoPlex) on Netlib and MIPLIB 2017 LP relaxations: every reported
+  optimum independently verified, performance variability measured across seeds
+  and permutations, and bootstrap intervals on shifted geometric means and
+  performance profiles.
+type: software
+authors:
+  - name: lpbench contributors
+repository-code: "https://github.com/h-a-forster/lpbench"
+license: MIT
+version: 0.0.1
+keywords:
+  - linear programming
+  - benchmarking
+  - performance profiles
+  - bootstrap
+  - performance variability
+references:
+  - type: article
+    authors:
+      - family-names: Dolan
+        given-names: Elizabeth D.
+      - family-names: Moré
+        given-names: Jorge J.
+    title: Benchmarking optimization software with performance profiles
+    journal: Mathematical Programming
+    volume: 91
+    issue: 2
+    start: 201
+    end: 213
+    year: 2002
+  - type: article
+    authors:
+      - family-names: Gleixner
+        given-names: Ambros
+      - name: et al.
+    title: "MIPLIB 2017: data-driven compilation of the 6th mixed-integer programming library"
+    journal: Mathematical Programming Computation
+    volume: 13
+    start: 443
+    end: 490
+    year: 2021
+  - type: article
+    authors:
+      - family-names: Koch
+        given-names: Thorsten
+    title: The final NETLIB-LP results
+    journal: Operations Research Letters
+    volume: 32
+    issue: 2
+    start: 138
+    end: 142
+    year: 2004
+    doi: 10.1016/S0167-6377(03)00094-4

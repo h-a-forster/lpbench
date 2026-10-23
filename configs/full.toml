@@ -1,0 +1,58 @@
+# Full study: documented, not run by default (several hours; `lpbench plan` prints the
+# projection). Draft until M4 implements config validation.
+name = "full"
+workers = 3
+time_limit_s = 300.0
+hard_deadline_factor = 1.5
+hard_deadline_extra_s = 10.0
+download_cap_bytes = 2_000_000_000
+seed = 20261024
+
+configs = [
+    "highs-dsimplex", "highs-ipx", "highs-pdlp", "highs-hipdlp",
+    "ortools-glop", "ortools-pdlp", "scip-soplex",
+]
+first_order = ["highs-pdlp", "highs-hipdlp", "ortools-pdlp"]
+verify_eps = [1e-4, 1e-6, 1e-8]
+
+[suites.netlib]
+exclude = ["qap8", "qap12", "qap15", "stocfor3", "truss", "standgub"]
+
+[suites.miplib]
+list = "benchmark-v2"
+max_nnz = 1_000_000
+
+[[blocks]]
+name = "main"
+suites = ["netlib", "miplib"]
+configs = "all"
+eps = 1e-6
+perms = [0, 1, 2, 3, 4]
+
+[[blocks]]
+name = "eps1e-8"
+suites = ["netlib", "miplib"]
+configs = "all"
+eps = 1e-8
+perms = [0]
+
+[[blocks]]
+name = "eps1e-4"
+suites = ["netlib", "miplib"]
+configs = "first_order"
+eps = 1e-4
+perms = [0]
+
+[[blocks]]
+name = "noise"
+subset = { per_suite = 15, strata = "nnz_tertiles" }
+configs = "all"
+eps = 1e-6
+perms = [0]
+repeats = 2
+
+[stats]
+bootstrap_resamples = 10_000
+shift_s = 1.0
+shift_sensitivity_s = [0.1, 10.0]
+penalty = "par1"

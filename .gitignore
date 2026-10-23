@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+.venv/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+tmp/
+.env
+
+# Downloaded instances, prepared MPS files and study runs (never committed;
+# small derived results go in docs/results/)
+/data/
+/cache/
+/runs/
+*.mps
+*.mps.gz
+*.mps.bz2
+# hand-built test problems are allowed
+!tests/fixtures/**
