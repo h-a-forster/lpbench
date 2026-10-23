@@ -43,7 +43,7 @@ def test_cli_versions_json(capsys: pytest.CaptureFixture[str]) -> None:
 
 
 def test_cli_planned_command_exits_2(capsys: pytest.CaptureFixture[str]) -> None:
-    assert cli.main(["run"]) == 2
+    assert cli.main(["report"]) == 2
     assert "not implemented" in capsys.readouterr().err
 
 

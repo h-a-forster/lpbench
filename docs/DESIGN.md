@@ -591,3 +591,13 @@ Recorded as they were made during implementation.
    is at least as tight as the row's implied bound on the active side, otherwise the tightest
    singleton row). Found by the verifier on a generated LP and on E226; recorded as an
    interface subtlety, not a solver bug.
+10. **(M4) Worker start-up.** Each worker imports the three solver libraries before it
+    reports ready, so no unit's hard deadline pays for imports (several seconds on a loaded
+    machine; an OR-Tools unit was killed in a test before this change). The worst case printed
+    by `plan` is the sum of all hard deadlines divided by the worker count; the projection is
+    an LPT schedule of per-unit predictions from pilot records (measured unit, else the mean
+    of its (config, suite, size tertile), else the config mean).
+11. **(M4) Subset eligibility.** The stratified permutation and noise subsets are drawn from
+    instances that have a reference value (all of netlib; MIPLIB instances with a consensus
+    value), rather than from instances verified by some config in the pilot. This keeps the
+    draw independent of benchmark outcomes and fixed before the run.

@@ -42,7 +42,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 
 | Path | Role | State |
 |---|---|---|
-| `src/lpbench/cli.py` | `versions` (done); `fetch`, `prepare`, `reference`, `plan`, `run`, `status`, `report` exit 2 until implemented | partial |
+| `src/lpbench/cli.py` | `versions`, `fetch`, `prepare`, `plan`, `run`, `status` done; `reference`, `report` exit 2 until implemented | partial |
 | `src/lpbench/versions.py` | library versions, SCIP/HiGHS lib versions, platform, git SHA | done |
 | `src/lpbench/config.py` | StudyConfig, validation, config hash | done (M2; blocks used from M4) |
 | `src/lpbench/lpmodel.py` | CanonicalLP, HiGHS extraction, permutations, exact free-MPS writer | done (M1) |
@@ -54,7 +54,9 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 | `src/lpbench/data/` | netlib reference values (Koch 2004), MIPLIB manifest, checksums | done (M2) |
 | `scripts/build_miplib_manifest.py` | parses the MIPLIB benchmark table once | done (M2) |
 | `src/lpbench/solvers/` | adapters (highs, ortools, scip), registry with tolerance table, fake adapters for harness tests | done (M3) |
-| `src/lpbench/worker.py`, `runner.py` | persistent workers, hard deadlines, checkpoints | M4 |
+| `src/lpbench/worker.py`, `runner.py` | persistent workers, hard deadlines, checkpoints | done (M4) |
+| `src/lpbench/planning.py` | unit counts, worst case, pilot-based LPT projection | done (M4) |
+| `scripts/run_study.py` | resume-on-failure wrapper, scrubbed `wrapper.log` | done (M4) |
 | `src/lpbench/reference.py` | consensus references for MIPLIB relaxations | M5 |
 | `src/lpbench/stats.py` | SGM, bootstrap, profiles with bands, ranks, Holm | M6 |
 | `src/lpbench/report.py` | tables, figures, ranking sensitivity | M7 |
@@ -121,5 +123,13 @@ uv run python scripts/run_study.py --config full --out runs/full     # several h
   0.5 s for every config. Findings: HiGHS PDLP needs `kkt_tolerance`; GLOP reports
   unbounded as infeasible through MPSolver; SCIP singleton-row duals need reconstruction
   (DESIGN 12, items 6-9).
-- **Next: M4** config blocks/units, persistent worker pool with hard deadlines, runner with
-  checkpoints, `run`, `status`, `plan`, `scripts/run_study.py`.
+- **Done (M4):** units from config blocks (`runner.build_units`), persistent spawn-context
+  workers that warm up the solver imports, hard deadlines (kill and respawn: KILLED), crash
+  handling (ERROR with exit code), atomic per-unit records skipped on rerun when the config
+  hash matches, `progress.log`, `manifest.json` with a history of starts, `plan` (worst case
+  and pilot projection), `run` (refuses beyond 45 min projected unless `--allow-long`),
+  `status`, `scripts/run_study.py`. Tests (`tests/test_runner.py`): kill-and-resume (no
+  duplicates, finished records untouched), sleeping fake adapter killed at the deadline,
+  `os._exit` crash, permutation k = 1 gives the k = 0 objective, config validation.
+- **Next: M5** `reference.py` (MIPLIB consensus), pilot on a ~10% stratified sample, plan
+  projection for quick (apply the DESIGN 8 cuts if > 45 min).
