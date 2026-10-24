@@ -175,3 +175,31 @@ def test_infinite_bound_side_counts_as_dual_infeasibility() -> None:
     lp = make_lp("free", np.zeros((0, 1)), c=[1], rl=[], ru=[], l=[-INF], u=[INF])
     v = verify(lp, np.array([0.0]), np.zeros(0))
     assert v is not None and v.dual_residual == 1.0
+
+
+def test_big_m_bound_hides_violations_from_the_scaled_check() -> None:
+    """One rhs of 1e10 makes b_scale 1e10, so x = 0, y = 0 passes the (preregistered)
+    infinity-norm check although it violates a row by 15 (MIPLIB trento1); only the
+    componentwise diagnostic and the reference objective reveal it."""
+    A = np.array([[1.0, 0.0], [0.0, 1.0]])
+    lp = make_lp("bigm", A, [1.0, 1.0], [15.0, -INF], [INF, 1e10], [0.0, 0.0], [INF, INF])
+    v = verify(lp, np.zeros(2), np.zeros(2))
+    assert v is not None
+    assert v.primal_residual == 15.0 and v.passes(1e-8)  # the weakness, recorded
+    assert v.rel_primal_comp == pytest.approx(15.0 / 16.0)
+    assert v.rel_primal_rows == v.rel_primal  # the big value sits in a row bound here
+    assert not objective_agrees(v.primal_objective, 15.0, 1e-6)
+
+
+def test_row_scale_ignores_variable_bounds() -> None:
+    """PDLP's relative primal criterion scales by constraint bounds only; a big-M variable
+    bound inflates b_scale but not the row-only scale (MIPLIB mas74: 1e12 vs 1.6e5)."""
+    A = np.array([[1.0, 1.0]])
+    lp = make_lp("bigu", A, [1.0, 1.0], [2.0], [INF], [0.0, 0.0], [1e12, INF])
+    x = np.array([1.0, 1.0 - 1e-3])
+    v = verify(lp, x, np.array([1.0]))
+    assert v is not None
+    assert v.b_scale == pytest.approx(1.0 + 1e12)
+    assert v.rel_primal == pytest.approx(1e-3 / (1.0 + 1e12))
+    assert v.rel_primal_rows == pytest.approx(1e-3 / 3.0)
+    assert v.rel_primal_comp == pytest.approx(1e-3 / 3.0)

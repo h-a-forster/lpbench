@@ -45,6 +45,7 @@ perms = [0]
 
 [[blocks]]
 name = "noise"
+# the report uses only (instance, config) pairs with every repeat >= 0.5 s CPU
 subset = { per_suite = 15, strata = "nnz_tertiles" }
 configs = "all"
 eps = 1e-6

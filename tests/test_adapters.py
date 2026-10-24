@@ -342,3 +342,21 @@ def test_upstream_highs_pdlp_time_limit_stops_early() -> None:
     h.run()
     elapsed = time.perf_counter() - t0
     assert h.getModelStatus() == highspy.HighsModelStatus.kTimeLimit and elapsed < 2.0
+
+
+@pytest.mark.parametrize("order", [0, 1])
+def test_scip_duplicate_singleton_rows(order: int, tmp_path: Path) -> None:
+    """Two identical singleton rows x0 >= 1: SCIP keeps one of them as an LP row with its own
+    dual (``getDualsolLinear`` nonzero) and the reduced cost of x0 is 0. The adapter must keep
+    that dual instead of rebuilding it from the reduced cost alone (MIPLIB nu25-pr12)."""
+    rows = [[1.0, 0.0], [1.0, 0.0], [1.0, 1.0]]
+    rl = [1.0, 1.0, 3.0]
+    if order:
+        rows = [rows[0], rows[2], rows[1]]
+        rl = [rl[0], rl[2], rl[1]]
+    lp = make_lp(f"dupsing{order}", np.array(rows), [2.0, 1.0], rl, [INF] * 3, [0.0] * 2, [INF] * 2)
+    res = _solve("scip-soplex", lp, tmp_path)
+    assert res.status == SolverStatus.OPTIMAL
+    v = verify(lp, res.x, res.y)
+    assert v.primal_objective == pytest.approx(4.0)
+    assert v.passes(1e-8), v

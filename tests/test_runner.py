@@ -25,7 +25,7 @@ from lpbench.synthetic import random_known_lp
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _cfg(tl: float = 5.0, extra: float = 2.0, workers: int = 2) -> object:
+def _cfg(tl: float = 5.0, extra: float = 2.0, workers: int = 2, seed: int = 7) -> object:
     return parse_config(
         {
             "name": "test",
@@ -34,7 +34,7 @@ def _cfg(tl: float = 5.0, extra: float = 2.0, workers: int = 2) -> object:
             "hard_deadline_factor": 1.0,
             "hard_deadline_extra_s": extra,
             "download_cap_bytes": 1000,
-            "seed": 7,
+            "seed": seed,
             "configs": ["highs-dsimplex", "scip-soplex", "ortools-glop"],
             "first_order": [],
             "blocks": [{"name": "main", "suites": ["netlib"], "configs": "all", "eps": 1e-6}],
@@ -206,6 +206,52 @@ def test_config_change_invalidates_records(cache: Path, tmp_path: Path) -> None:
     assert s.completed == 1 and s.skipped == 0
 
 
+def test_prepare_failure_is_not_checkpointed(cache: Path, tmp_path: Path) -> None:
+    """A unit whose input is missing gets no record, so a rerun after preparing runs it."""
+    k = random_known_lp(10, 12, seed=901)
+    inst = Instance("synthetic", "r0", "r0", "https://netlib.org/x", k.lp.m, k.lp.n, k.lp.nnz)
+    units = [Unit("main", inst, 0, "highs-dsimplex", 1e-6)]
+    out = tmp_path / "run"
+    s1 = Runner(_cfg(), out, units).run()
+    assert s1.not_run == 1 and s1.completed == 0
+    assert load_records(out) == {}
+    save_npz(k.lp, inst.canonical_path(cache))
+    s2 = Runner(_cfg(), out, units).run()
+    assert s2.completed == 1 and s2.not_run == 0
+    assert load_records(out)[units[0].unit_id]["status"] == "OPTIMAL"
+
+
+def test_permuted_mps_cache_is_keyed_by_seed(cache: Path, tmp_path: Path) -> None:
+    """Two studies with different seeds share a cache; each must solve its own permutation."""
+    insts = _instances(cache, 1)
+    units = _units(insts, ["highs-dsimplex"], ks=(1,))
+    for seed in (1, 2):
+        Runner(_cfg(seed=seed), tmp_path / f"run{seed}", units).run()
+        rec = load_records(tmp_path / f"run{seed}")[units[0].unit_id]
+        assert rec["verified_solve"] is True, rec
+    files = sorted(p.name for p in (cache / "mps" / "synthetic").glob("*.mps"))
+    assert files == ["rand0__s1__p1.mps", "rand0__s2__p1.mps"]
+
+
+def test_legacy_prepare_failure_record_is_rerun(cache: Path, tmp_path: Path) -> None:
+    """Records of prepare failures written by older versions do not count as done."""
+    insts = _instances(cache, 1)
+    units = _units(insts, ["highs-dsimplex"])
+    out = tmp_path / "run"
+    cfg = _cfg()
+    rec = {
+        "unit_id": units[0].unit_id,
+        "config_hash": cfg.config_hash(),  # type: ignore[attr-defined]
+        "status": "ERROR",
+        "message": "prepare failed: synthetic",
+    }
+    (out / "units").mkdir(parents=True)
+    (out / "units" / f"{units[0].unit_id}.json").write_text(json.dumps(rec), encoding="utf-8")
+    s = Runner(cfg, out, units).run()
+    assert s.completed == 1 and s.skipped == 0
+    assert load_records(out)[units[0].unit_id]["status"] == "OPTIMAL"
+
+
 # ---------------------------------------------------------------------------------------------
 # Config validation and the quick study's units and plan
 # ---------------------------------------------------------------------------------------------
@@ -229,6 +275,8 @@ def test_config_validation() -> None:
         {"time_limit_s": 0},
         {"blocks": [{"name": "b", "eps": 2.0}]},
         {"blocks": [{"name": "b", "eps": 1e-6}, {"name": "b", "eps": 1e-6}]},
+        {"blocks": [{"name": "b", "eps": 1e-6, "instances": ["afiro"]}]},
+        {"blocks": [{"name": "b", "eps": 1e-6, "instances": ["netlib/A", "netlib/A"]}]},
     ):
         with pytest.raises(ConfigError):
             parse_config({**good, **patch})
@@ -246,6 +294,8 @@ def test_quick_units_match_design_counts() -> None:
     assert by_block["eps1e-4"] == 92 * 3 == 276
     assert len({u.unit_id for u in units}) == len(units)
     assert cfg.hard_deadline_s == 25.0
+    noise = sorted({u.instance.id for u in units if u.block == "noise"})
+    assert len(noise) == 10 and "miplib/net12" in noise and by_block["noise"] == 40
 
 
 def test_plan_projection_from_pilot() -> None:

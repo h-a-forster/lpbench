@@ -126,8 +126,8 @@ def ensure_canonical(inst: Instance, root: Path | None = None) -> CanonicalLP:
 
 
 def ensure_mps(inst: Instance, k: int, seed: int, root: Path | None = None) -> Path:
-    """Write the permuted MPS file for (instance, k) if it does not exist yet."""
-    path = inst.mps_path(k, root)
+    """Write the MPS file for (instance, k, seed) if it does not exist yet."""
+    path = inst.mps_path(k, root, seed)
     if path.exists():
         return path
     lp = ensure_canonical(inst, root)

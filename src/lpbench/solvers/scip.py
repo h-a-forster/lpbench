@@ -34,13 +34,16 @@ _STATUS = {
 def _row_duals(m: Any) -> np.ndarray:
     """Row duals in the convention z = c - A^T y, including singleton rows.
 
-    SCIP keeps a linear constraint with a single variable as a bound in its LP, so
-    ``getDualsolLinear`` returns 0 for it and the multiplier sits in the variable's reduced
-    cost (``getDualSolVal`` attributes that reduced cost to the row even when the variable's
-    own bound is the active one, which can give the wrong sign). For each singleton row we
-    therefore split the reduced cost ourselves: it belongs to the variable's own bound if that
-    bound is at least as tight as the row's implied bound on the active side, otherwise to the
-    tightest singleton row on that side (``y_i = r_j / a_ij``).
+    Every row starts from ``getDualsolLinear``. SCIP may keep a linear constraint with a
+    single variable as a bound in its LP, in which case ``getDualsolLinear`` returns 0 for it
+    and the multiplier sits in the variable's reduced cost; it may also keep it as an LP row
+    with its own dual (seen with two identical singleton rows, where one carries the dual).
+    The reduced cost ``r_j`` is always relative to the rows SCIP actually has in its LP, so
+    it is the part of the multiplier SCIP moved into a bound. We split it ourselves
+    (``getDualSolVal`` attributes it to the row even when the variable's own bound is the
+    active one, which can give the wrong sign): it belongs to the variable's own bound if
+    that bound is at least as tight as the row's implied bound on the active side, otherwise
+    it is added to the tightest singleton row on that side (``y_i += r_j / a_ij``).
     """
     big = 1e20
     conss = m.getConss()
@@ -60,8 +63,7 @@ def _row_duals(m: Any) -> np.ndarray:
             else:
                 imp_lo, imp_hi = hi_s / a, lo_s / a
             by_var.setdefault(vname, []).append((k, a, imp_lo, imp_hi))
-        else:
-            y[k] = m.getDualsolLinear(c)
+        y[k] = m.getDualsolLinear(c)
     if by_var:
         for v in m.getVars():
             rows = by_var.get(v.name)
@@ -76,11 +78,11 @@ def _row_duals(m: Any) -> np.ndarray:
             if r > 0:  # a lower bound is active
                 k, a, imp, _ = max(rows, key=lambda t: t[2])
                 if not own_lo >= imp:
-                    y[k] = r / a
+                    y[k] += r / a
             else:  # an upper bound is active
                 k, a, _, imp = min(rows, key=lambda t: t[3])
                 if not own_hi <= imp:
-                    y[k] = r / a
+                    y[k] += r / a
     return y
 
 

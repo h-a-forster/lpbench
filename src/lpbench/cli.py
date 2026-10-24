@@ -101,7 +101,15 @@ def _cmd_run(args: argparse.Namespace) -> int:
     runner = Runner(cfg, out, units, workers=args.workers, provenance=provenance(), log=log)
     summary = runner.run(max_units=args.max_units)
     errors = summary.statuses.get("CONFIG_ERROR", 0)
-    return 4 if errors else 0
+    if errors:
+        return 4
+    if summary.not_run:
+        log(
+            f"{summary.not_run} units were not run because their input could not be prepared; "
+            "run `lpbench fetch` and `lpbench prepare` for this config, then rerun"
+        )
+        return 5
+    return 0
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
@@ -177,6 +185,14 @@ def _cmd_report(args: argparse.Namespace) -> int:
     m = res["meta"]
     print(f"report for {m['study']}: {m['units']} units -> {out}")
     print("primary ranking: " + " < ".join(res["tables"]["primary_ranking"]))
+    comp = m.get("completeness") or {}
+    if comp and not comp.get("complete"):
+        print(
+            f"WARNING: incomplete run: {comp.get('recorded')} of {comp.get('expected', '?')} "
+            f"units recorded, {comp.get('main_missing_pairs')} main-block pairs missing; "
+            "missing units are scored as failures at the time limit",
+            file=sys.stderr,
+        )
     return 0
 
 

@@ -50,8 +50,15 @@ class Instance:
     def canonical_path(self, root: Path | None = None) -> Path:
         return (root or cache_root()) / "canonical" / self.suite / f"{self.name}.npz"
 
-    def mps_path(self, k: int, root: Path | None = None) -> Path:
-        return (root or cache_root()) / "mps" / self.suite / f"{self.name}__p{k}.mps"
+    def mps_path(self, k: int, root: Path | None = None, seed: int | None = None) -> Path:
+        """MPS file of permutation ``k``. A permuted file depends on (seed, name, k), so its
+        name carries the seed; ``k = 0`` is the original order and has no seed."""
+        base = (root or cache_root()) / "mps" / self.suite
+        if k == 0:
+            return base / f"{self.name}__p0.mps"
+        if seed is None:
+            raise ValueError("a permuted MPS file needs the permutation seed")
+        return base / f"{self.name}__s{seed}__p{k}.mps"
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:

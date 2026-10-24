@@ -7,6 +7,12 @@ solver). At an optimum of the minimisation problem ``y_i > 0`` only if ``rl_i`` 
 All norms are infinity norms over finite entries. A pair passes at tolerance ``eps`` when
 
     r_P / b_scale <= eps,   r_D / c_scale <= eps,   |P - D| / (1 + |P| + |D|) <= eps.
+
+``b_scale`` includes the variable bounds, so one large bound loosens the primal test for
+every row. Two stricter primal measures are recorded as diagnostics (they do not decide
+``passes``): ``rel_primal_rows`` scales by the constraint bounds only (as PDLP's relative
+criterion does) and ``rel_primal_comp`` scales each violation by its own bound,
+``max_i viol_i / (1 + |bound_i|)``.
 """
 
 from __future__ import annotations
@@ -39,6 +45,8 @@ class Verification:
     floor_primal: float  # evaluation-error floor of the primal side, relative to b_scale
     floor_dual: float  # same for the dual side, relative to c_scale
     has_dual: bool
+    rel_primal_rows: float = math.nan  # r_P / (1 + max finite |rl|, |ru|), diagnostic
+    rel_primal_comp: float = math.nan  # componentwise relative primal residual, diagnostic
 
     @property
     def max_rel(self) -> float:
@@ -87,6 +95,35 @@ def scales(lp: CanonicalLP) -> tuple[float, float]:
     return 1.0 + bmax, 1.0 + cmax
 
 
+def row_scale(lp: CanonicalLP) -> float:
+    """``1 + max finite |rl|, |ru|``: the constraint-bound part of ``b_scale``."""
+    bmax = 0.0
+    for arr in (lp.rl, lp.ru):
+        fin = np.abs(arr[np.isfinite(arr)])
+        if fin.size:
+            bmax = max(bmax, float(fin.max()))
+    return 1.0 + bmax
+
+
+def componentwise_primal_residual(
+    lp: CanonicalLP, x: np.ndarray, ax: np.ndarray | None = None
+) -> float:
+    """``max_i viol_i / (1 + |bound_i|)`` over every finite row and column bound."""
+    if ax is None:
+        ax = lp.A @ x
+    worst = 0.0
+    for lo, val, hi in ((lp.rl, ax, lp.ru), (lp.l, x, lp.u)):
+        fl = np.isfinite(lo)
+        fh = np.isfinite(hi)
+        if fl.any():
+            v = np.maximum(lo[fl] - val[fl], 0.0) / (1.0 + np.abs(lo[fl]))
+            worst = max(worst, _finite_max(v))
+        if fh.any():
+            v = np.maximum(val[fh] - hi[fh], 0.0) / (1.0 + np.abs(hi[fh]))
+            worst = max(worst, _finite_max(v))
+    return worst
+
+
 def primal_residual(lp: CanonicalLP, x: np.ndarray, ax: np.ndarray | None = None) -> float:
     """``r_P``: largest violation of a row or column bound (infinity norm)."""
     if ax is None:
@@ -130,10 +167,11 @@ def verify(lp: CanonicalLP, x: np.ndarray | None, y: np.ndarray | None) -> Verif
     row_len = np.diff(lp.A.indptr).astype(np.float64)
 
     if not np.isfinite(x).all():
-        r_p, p_obj, floor_p = inf, inf, inf
+        r_p, p_obj, floor_p, comp_p = inf, inf, inf, inf
     else:
         ax = lp.A @ x
         r_p = primal_residual(lp, x, ax)
+        comp_p = componentwise_primal_residual(lp, x, ax)
         p_obj = float(lp.c @ x) + lp.c0
         floor_p = _finite_max(row_len * UNIT_ROUNDOFF * (absA @ np.abs(x))) / b_scale
 
@@ -170,6 +208,8 @@ def verify(lp: CanonicalLP, x: np.ndarray | None, y: np.ndarray | None) -> Verif
         floor_primal=floor_p,
         floor_dual=floor_d,
         has_dual=has_dual,
+        rel_primal_rows=r_p / row_scale(lp),
+        rel_primal_comp=comp_p,
     )
 
 

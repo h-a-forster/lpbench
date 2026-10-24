@@ -54,13 +54,22 @@ def block_instances(
     subset_per_suite: int,
     salt: str,
     pool: list[Instance] | None = None,
+    ids: tuple[str, ...] = (),
 ) -> list[Instance]:
+    if ids:
+        block_suites = tuple(sorted({i.partition("/")[0] for i in ids}))
     if pool is None:
         pool = []
         for s in block_suites:
             pool.extend(suite_instances(cfg, s))
     else:
         pool = [i for i in pool if i.suite in block_suites]
+    if ids:
+        by_id = {i.id: i for i in pool}
+        missing = [i for i in ids if i not in by_id]
+        if missing:
+            raise ValueError(f"instances not in the study: {', '.join(missing)}")
+        return [by_id[i] for i in ids]
     if subset_per_suite > 0:
         eligible = [i for i in pool if i.reference is not None]
         return stratified_subset(eligible, subset_per_suite, cfg.seed, salt)
@@ -72,7 +81,7 @@ def build_units(cfg: StudyConfig, pool: list[Instance] | None = None) -> list[Un
     units: list[Unit] = []
     seen: set[str] = set()
     for b in cfg.blocks:
-        insts = block_instances(cfg, b.suites, b.subset_per_suite, b.subset_salt, pool)
+        insts = block_instances(cfg, b.suites, b.subset_per_suite, b.subset_salt, pool, b.instances)
         for inst in insts:
             for k in b.perms:
                 for c in b.configs:
@@ -127,6 +136,13 @@ def _sanitize(obj: Any) -> Any:
     return obj
 
 
+def is_harness_failure(rec: dict[str, Any]) -> bool:
+    """True for a record that describes a harness-side failure, not a solver outcome."""
+    return rec.get("status") == "ERROR" and str(rec.get("message") or "").startswith(
+        "prepare failed"
+    )
+
+
 def load_records(run_dir: Path) -> dict[str, dict[str, Any]]:
     out = {}
     units = Path(run_dir) / "units"
@@ -161,6 +177,7 @@ class RunSummary:
     completed: int
     statuses: dict[str, int] = field(default_factory=dict)
     wall_s: float = 0.0
+    not_run: int = 0  # units whose input could not be prepared (no record written)
 
 
 def utc_now() -> str:
@@ -194,9 +211,15 @@ class Runner:
         return self.run_dir / "units" / f"{uid}.json"
 
     def _done_ids(self) -> set[str]:
+        """Units with a record for the current config hash.
+
+        Harness-side failures are not results: a record of a unit whose input could not be
+        prepared (written by versions before 0.1.1) does not count as done, so a rerun after
+        fixing the data runs it.
+        """
         done = set()
         for uid, rec in load_records(self.run_dir).items():
-            if rec.get("config_hash") == self.config_hash:
+            if rec.get("config_hash") == self.config_hash and not is_harness_failure(rec):
                 done.add(uid)
         return done
 
@@ -381,10 +404,12 @@ class Runner:
                         u = queue.pop(0)
                         try:
                             task = self._task(u)
-                        except Exception as exc:  # missing files etc.: record, keep going
-                            s.task = {"unit_id": u.unit_id}
-                            s.started = time.perf_counter()
-                            finish(s, {"status": "ERROR", "message": f"prepare failed: {exc}"})
+                        except Exception as exc:  # missing files etc.: not a unit result
+                            summary.not_run += 1
+                            self.log(
+                                f"{utc_now()} {u.unit_id} NOT RUN (prepare failed: "
+                                f"{type(exc).__name__}: {exc}); no record written"
+                            )
                             continue
                         s.task, s.started = task, time.perf_counter()
                         s.conn.send(task)
@@ -452,6 +477,7 @@ class Runner:
         self.log(
             f"{utc_now()} finished: {summary.completed} units this run in "
             f"{summary.wall_s:.0f} s; {n_done}/{total} done"
+            + (f"; {summary.not_run} not run (prepare failed)" if summary.not_run else "")
         )
         return summary
 

@@ -23,6 +23,9 @@ from lpbench import stats as S
 from lpbench.runner import load_records
 
 PROFILE_FLOOR_S = 0.02  # timer granularity guard for performance-profile ratios (DESIGN 12)
+#: Variability and noise use raw CPU times, and only (instance, config) pairs whose every
+#: time is at least this long: 32 steps of the 15.6 ms Windows process-time clock.
+GSD_MIN_TIME_S = 0.5
 FAIL_GROUPS = ("claimed_unverified", "TIME_LIMIT", "KILLED", "ERROR", "NUMERICAL", "other")
 
 
@@ -58,6 +61,29 @@ def load_run(run_dir: Path) -> RunData:
     return RunData(
         run_dir, manifest, recs, list(cfg["configs"]), float(cfg["time_limit_s"]), int(cfg["seed"])
     )
+
+
+def completeness(run: RunData) -> dict[str, Any]:
+    """Recorded units versus the units the run was started with (manifest history).
+
+    A missing unit is scored as a failure at the time limit, and the runner does the most
+    expensive units first, so a partial run is biased; the report says so prominently.
+    """
+    hist = run.manifest.get("history") or []
+    expected = hist[-1].get("units_total") if hist else None
+    main = [r for r in run.records if r["block"] == "main" and r["k"] == 0]
+    insts = {r["instance"] for r in main}
+    cfgs = {r["config"] for r in main} | set(run.configs)
+    pairs = {(r["instance"], r["config"]) for r in main}
+    return {
+        "expected": expected,
+        "recorded": len(run.records),
+        "missing": None if expected is None else max(int(expected) - len(run.records), 0),
+        "main_missing_pairs": len(insts) * len(cfgs) - len(pairs),
+        "complete": expected is not None
+        and len(run.records) >= int(expected)
+        and len(insts) * len(cfgs) == len(pairs),
+    }
 
 
 def _rng(seed: int, *salt: int) -> np.random.Generator:
@@ -105,7 +131,9 @@ def matrix(
             if r is None:
                 continue
             raw[i, j] = time_of(r, time_key)
-            ok[i, j] = bool(solved_fn(r)) and math.isfinite(raw[i, j])
+            ok[i, j] = (
+                bool(solved_fn(r)) and math.isfinite(raw[i, j]) and not over_limit(r, time_limit)
+            )
     tl = time_limit if tl_prime is None else tl_prime
     if tl_prime is not None:
         ok &= raw <= tl_prime
@@ -113,8 +141,22 @@ def matrix(
     return T, raw, ok
 
 
-def failure_group(r: dict[str, Any], eps: str) -> str | None:
+def over_limit(r: dict[str, Any], time_limit: float) -> bool:
+    """True if the solve took longer than the time limit in wall time.
+
+    Every config except ``highs-pdlp`` stops on an in-library wall-clock limit, so it cannot
+    return a solution after ``time_limit`` s of wall time; ``highs-pdlp`` is stopped
+    externally at ``time_limit + 5 s``. Applying the same wall budget to every config keeps
+    the budgets equal (a late answer counts as TIME_LIMIT).
+    """
+    w = r.get("solve_wall_s")
+    return w is not None and float(w) > time_limit
+
+
+def failure_group(r: dict[str, Any], eps: str, time_limit: float = math.inf) -> str | None:
     if r.get("status") == "OPTIMAL":
+        if over_limit(r, time_limit):
+            return "TIME_LIMIT"
         return None if r.get("verified_at", {}).get(eps) else "claimed_unverified"
     st = str(r.get("status"))
     if st in ("TIME_LIMIT", "KILLED", "ERROR", "NUMERICAL"):
@@ -179,13 +221,37 @@ def _round(obj: Any, nd: int = 6) -> Any:
 # --------------------------------------------------------------------------------------------
 
 
-def outcome_table(recs: list[dict[str, Any]], configs: list[str], eps: str) -> dict[str, dict]:
+def _worst_error(r: dict[str, Any]) -> float:
+    """Largest of the KKT measure and the reference-objective error (inf if missing)."""
+    if r.get("max_rel") is None:
+        return math.inf
+    vals = [r.get("max_rel"), r.get("ref_rel_error")]
+    return max(float(v) for v in vals if v is not None)
+
+
+def failed_criteria(r: dict[str, Any], eps: float) -> str:
+    """Which criteria a claimed optimum misses at ``eps``: P(rimal), D(ual), G(ap), ref."""
+    v = r.get("verification") or {}
+    parts = []
+    for key, label in (("rel_primal", "P"), ("rel_dual", "D"), ("rel_gap", "G")):
+        val = v.get(key)
+        if val is None or val > eps:
+            parts.append(label)
+    ref_err = r.get("ref_rel_error")
+    if r.get("reference") is not None and (ref_err is None or ref_err > eps):
+        parts.append("ref")
+    return "+".join(parts) or "none"
+
+
+def outcome_table(
+    recs: list[dict[str, Any]], configs: list[str], eps: str, time_limit: float = math.inf
+) -> dict[str, dict]:
     out: dict[str, dict] = {}
     for c in configs:
         rs = [r for r in recs if r["config"] == c]
         cnt: Counter[str] = Counter()
         for r in rs:
-            g = failure_group(r, eps)
+            g = failure_group(r, eps, time_limit)
             cnt[g or "verified"] += 1
         out[c] = {"units": len(rs), "verified": cnt["verified"], **{g: cnt[g] for g in FAIL_GROUPS}}
     return out
@@ -320,14 +386,18 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
         "git": sorted({str(r.get("git")) for r in run.records}),
         "config_errors": status_all.get("CONFIG_ERROR", 0),
         "hidden_thread_flags": sum(1 for r in run.records if r.get("hidden_threads")),
+        "completeness": completeness(run),
     }
 
     # -- outcomes ------------------------------------------------------------------------------
-    res["tables"]["outcomes"] = {"all": outcome_table(main, configs, ek)}
+    res["tables"]["outcomes"] = {"all": outcome_table(main, configs, ek, TL)}
     for s in suites:
         res["tables"]["outcomes"][s] = outcome_table(
-            [r for r in main if r["suite"] == s], configs, ek
+            [r for r in main if r["suite"] == s], configs, ek, TL
         )
+    res["meta"]["optimal_after_limit"] = sorted(
+        r["unit_id"] for r in run.records if r.get("status") == "OPTIMAL" and over_limit(r, TL)
+    )
 
     # -- verification detail ------------------------------------------------------------------
     ver: dict[str, Any] = {}
@@ -349,10 +419,8 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
         d["no_dual"] = sum(
             1 for r in opt if r.get("verification") and not r["verification"].get("has_dual")
         )
-        worst = sorted(
-            (r for r in opt if not r.get("verified_at", {}).get(ek)),
-            key=lambda r: -(r.get("max_rel") or math.inf),
-        )
+        failed = [r for r in opt if not r.get("verified_at", {}).get(ek)]
+        worst = sorted(failed, key=lambda r: (-_worst_error(r), r["instance"]))
         d["examples"] = [
             {
                 "instance": r["instance"],
@@ -361,9 +429,19 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
                 "rel_dual": (r.get("verification") or {}).get("rel_dual"),
                 "rel_gap": (r.get("verification") or {}).get("rel_gap"),
                 "ref_rel_error": r.get("ref_rel_error"),
+                "primal_residual": (r.get("verification") or {}).get("primal_residual"),
+                "rel_primal_comp": (r.get("verification") or {}).get("rel_primal_comp"),
             }
             for r in worst[:5]
         ]
+        d["failed_criteria"] = dict(
+            sorted(Counter(failed_criteria(r, main_eps) for r in failed).items())
+        )
+        ok_recs = [r for r in opt if r.get("verified_at", {}).get(ek)]
+        for key in ("rel_primal_rows", "rel_primal_comp"):
+            vals = [(r.get("verification") or {}).get(key) for r in ok_recs]
+            d[f"verified_failing_{key}"] = sum(1 for v in vals if v is not None and v > main_eps)
+            d[f"verified_missing_{key}"] = sum(1 for v in vals if v is None)
         ver[c] = d
     res["tables"]["verification"] = ver
     # status disagreements (infeasible/unbounded claims on instances others solve)
@@ -403,6 +481,7 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
         Ts, _, _ = matrix(main, sub, configs, solved_verified(ek), TL)
         res["tables"]["sgm"][s] = sgm_table(Ts, configs, shift, B, seed, 10 + si)
         res["tables"]["pairwise"][s] = pairwise(Ts, configs, shift, B, seed, 20 + si)
+    pw_net = res["tables"]["pairwise"].get("netlib")
     rs_ = S.rank_stability(T, shift, B, _rng(seed, 3))
     res["tables"]["rank_probabilities"] = {c: rs_.p_rank[j].tolist() for j, c in enumerate(configs)}
     res["tables"]["p_faster"] = {
@@ -436,11 +515,21 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
     sig = significant_pairs(pw_all)
     sens: dict[str, Any] = {}
 
-    def add(label: str, Tm: np.ndarray, cfgs: list[str] | None = None, sh: float = shift) -> None:
+    def add(
+        label: str,
+        Tm: np.ndarray,
+        cfgs: list[str] | None = None,
+        sh: float = shift,
+        baseline: tuple[str, dict[str, float], list[tuple[str, str]]] | None = None,
+    ) -> None:
         cs = cfgs or configs
         rk = ranking(Tm, cs, sh)
         sg = dict(zip(cs, np.atleast_1d(S.sgm(Tm, sh, axis=0)).tolist(), strict=True))
-        sens[label] = compare_rankings(primary_rank, rk, sig, sg) | {"n_instances": len(Tm)}
+        base_name, base_rank, base_sig = baseline or ("primary", primary_rank, sig)
+        sens[label] = compare_rankings(base_rank, rk, base_sig, sg) | {
+            "n_instances": len(Tm),
+            "baseline": base_name,
+        }
 
     Ta, _, _ = matrix(main, perf_insts, configs, solved_trust, TL)
     add("(a) trust solver status", Ta)
@@ -458,7 +547,15 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
             if r["instance"] in set(net)
         ]
         Tc, _, _ = matrix(mixed, net, configs, solved_verified("1e-04"), TL)
-        add("(c) requested eps 1e-4 (netlib; first-order re-run, others re-verified)", Tc)
+        # compare with the primary analysis on the same (netlib) instances, so that the
+        # change measured is the epsilon and not the instance set
+        Tn, _, _ = matrix(main, net, configs, solved_verified(ek), TL)
+        net_sig = significant_pairs(pw_net) if pw_net is not None else []
+        add(
+            "(c) requested eps 1e-4 (netlib; first-order re-run, others re-verified)",
+            Tc,
+            baseline=("netlib only", ranking(Tn, configs, shift), net_sig),
+        )
     for sh in shifts:
         add(f"(d) shift {sh:g} s", T, sh=sh)
     Te, _, _ = matrix(main, perf_insts, configs, solved_verified(ek), TL, par=2)
@@ -522,7 +619,7 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
         var = {}
         T3 = np.zeros((len(perm_insts), len(configs), len(ks_all)))
         for j, c in enumerate(configs):
-            gsd_t, gsd_it, rr, flips, n_pairs = [], [], [], 0, 0
+            gsd_t, gsd_it, gsd_it_long, rr, flips, n_pairs = [], [], [], [], 0, 0
             for i, inst in enumerate(perm_insts):
                 rs = [allk.get((inst, c, k)) for k in ks_all]
                 if any(r is None for r in rs):
@@ -535,16 +632,24 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
                     flips += 1
                 n_pairs += 1
                 if all(okk):
-                    gsd_t.append(S.geometric_sd(np.array(tt) + shift))
-                    rr.append(S.range_ratio(np.array(tt) + shift))
                     its = [r.get("total_iterations") or 0 for r in rs]  # type: ignore[union-attr]
-                    if min(its) > 0:
-                        gsd_it.append(S.geometric_sd(np.array(its, dtype=float), 1.0))
+                    g_it = S.geometric_sd(np.array(its, dtype=float), 1.0) if min(its) > 0 else None
+                    if g_it is not None:
+                        gsd_it.append(g_it)
+                    if min(tt) >= GSD_MIN_TIME_S:
+                        gsd_t.append(S.geometric_sd(np.array(tt)))
+                        rr.append(S.range_ratio(np.array(tt)))
+                        if g_it is not None:
+                            gsd_it_long.append(g_it)
             var[c] = {
                 "instances": n_pairs,
                 "status_flips": flips,
+                "instances_long": len(gsd_t),
                 "median_gsd_time": float(np.median(gsd_t)) if gsd_t else None,
                 "p90_gsd_time": float(np.quantile(gsd_t, 0.9)) if gsd_t else None,
+                "median_gsd_iterations_long": (
+                    float(np.median(gsd_it_long)) if gsd_it_long else None
+                ),
                 "median_gsd_iterations": float(np.median(gsd_it)) if gsd_it else None,
                 "p90_gsd_iterations": float(np.quantile(gsd_it, 0.9)) if gsd_it else None,
                 "max_range_ratio_time": float(np.max(rr)) if rr else None,
@@ -573,19 +678,23 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
                 groups[(r["instance"], r["config"])].append(r)
         nz = {}
         for c in sorted({c for (_, c) in groups}):
-            gsd_c, gsd_w, same_it, n = [], [], 0, 0
+            gsd_c, gsd_w, same_it, n, n_long = [], [], 0, 0, 0
             for (_inst, cc), rs in sorted(groups.items()):
                 if cc != c or len(rs) < 2:
                     continue
                 n += 1
-                gsd_c.append(S.geometric_sd(np.array([time_of(r) for r in rs]) + shift))
-                gsd_w.append(
-                    S.geometric_sd(np.array([time_of(r, "solve_wall_s") for r in rs]) + shift)
-                )
                 its = {r.get("total_iterations") for r in rs}
                 same_it += len(its) == 1
+                tc = np.array([time_of(r) for r in rs])
+                tw = np.array([time_of(r, "solve_wall_s") for r in rs])
+                if not (np.isfinite(tc).all() and tc.min() >= GSD_MIN_TIME_S):
+                    continue
+                n_long += 1
+                gsd_c.append(S.geometric_sd(tc))
+                gsd_w.append(S.geometric_sd(tw))
             nz[c] = {
                 "instances": n,
+                "instances_long": n_long,
                 "median_gsd_cpu": float(np.median(gsd_c)) if gsd_c else None,
                 "max_gsd_cpu": float(np.max(gsd_c)) if gsd_c else None,
                 "median_gsd_wall": float(np.median(gsd_w)) if gsd_w else None,
@@ -620,6 +729,13 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
 # --------------------------------------------------------------------------------------------
 
 
+def _diag(d: dict[str, Any], key: str) -> str:
+    """Count of verified solves failing a diagnostic, or '-' if records predate it."""
+    if d.get(f"verified_missing_{key}", 1):
+        return "-"
+    return str(d.get(f"verified_failing_{key}", "-"))
+
+
 def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None) -> str:
     m = res["meta"]
     t = res["tables"]
@@ -628,6 +744,15 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
     w = out.write
     w(f"# lpbench results: {m['study']}\n\n")
     w("Generated by `lpbench report` from the unit records; do not edit by hand.\n\n")
+    comp = m.get("completeness") or {}
+    if comp and not comp.get("complete"):
+        w(
+            f"> **Incomplete run:** {comp.get('recorded')} of {comp.get('expected', '?')} units "
+            f"recorded ({comp.get('main_missing_pairs')} missing (instance, config) pairs in the "
+            "main block). Missing units are scored as failures at the time limit, and the "
+            "runner runs the most expensive units first, so these numbers are biased. Finish "
+            "the run before using them.\n\n"
+        )
     w("## What was run\n\n")
     inst = ", ".join(f"{k} {v}" for k, v in m["instances"].items())
     w(
@@ -671,6 +796,11 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
         f"- Reference sources (main block): "
         f"{', '.join(f'{k} {v}' for k, v in m['reference_sources'].items())}.\n"
     )
+    if m.get("optimal_after_limit"):
+        w(
+            f"- Optimal answers returned after the {f3(m['time_limit_s'])} s wall-time limit, "
+            f"scored as TIME_LIMIT: {', '.join(m['optimal_after_limit'])}.\n"
+        )
     if m.get("dropped_infeasible_or_unbounded"):
         w(
             f"- Dropped (all finishing configs report infeasible/unbounded): "
@@ -741,8 +871,37 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
     )
     w(
         "Failing at an epsilon means the solution misses the primal, dual or gap criterion "
-        "of DESIGN 5.2 at that epsilon, or disagrees with the reference objective. These are "
-        "tolerance-definition outcomes, not solver bugs (no bug-claim protocol was completed).\n\n"
+        "of DESIGN 5.2 at that epsilon, or disagrees with the reference objective. No "
+        "bug-claim protocol was completed for any of them.\n\n"
+    )
+    crit = sorted({k for d in t["verification"].values() for k in d.get("failed_criteria", {})})
+    if crit:
+        w(
+            "Which criteria the claimed-but-unverified solves miss at the main epsilon "
+            "(P primal residual, D dual residual, G gap, ref reference objective):\n\n"
+        )
+        rows = [
+            [c] + [d.get("failed_criteria", {}).get(k, 0) for k in crit]
+            for c, d in t["verification"].items()
+        ]
+        w(md_table(["config", *crit], rows) + "\n\n")
+    w(
+        "Stricter primal measures (diagnostics, not part of the pass rule): verified solves "
+        "whose primal residual exceeds the main epsilon when scaled by the constraint bounds "
+        "only (as PDLP's relative criterion does) or componentwise by each bound:\n\n"
+    )
+    rows = [
+        [
+            c,
+            d["claimed_optimal"] - d["fail_1e-06"],
+            _diag(d, "rel_primal_rows"),
+            _diag(d, "rel_primal_comp"),
+        ]
+        for c, d in t["verification"].items()
+    ]
+    w(
+        md_table(["config", "verified", "fail with row-only scale", "fail componentwise"], rows)
+        + "\n\n"
     )
     ex_rows = []
     for c, d in t["verification"].items():
@@ -755,10 +914,15 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
                     f3(e["rel_dual"]),
                     f3(e["rel_gap"]),
                     f3(e["ref_rel_error"]),
+                    f3(e.get("primal_residual")),
+                    f3(e.get("rel_primal_comp")),
                 ]
             )
     if ex_rows:
-        w("Largest violations among claimed-but-unverified solves (up to 3 per config):\n\n")
+        w(
+            "Largest errors among claimed-but-unverified solves (up to 3 per config, sorted by "
+            "the larger of the KKT measure and the objective error):\n\n"
+        )
         w(
             md_table(
                 [
@@ -768,6 +932,8 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
                     "rel. dual",
                     "rel. gap",
                     "objective rel. error",
+                    "abs. primal residual",
+                    "componentwise primal",
                 ],
                 ex_rows,
             )
@@ -889,8 +1055,10 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
                 c,
                 d["instances"],
                 d["status_flips"],
+                d.get("instances_long", "-"),
                 f3(d["median_gsd_time"]),
                 f3(d["p90_gsd_time"]),
+                f3(d.get("median_gsd_iterations_long")),
                 f3(d["median_gsd_iterations"]),
                 f3(d["p90_gsd_iterations"]),
                 f3(d["max_range_ratio_time"]),
@@ -903,8 +1071,10 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
                     "config",
                     "instances",
                     "status flips",
+                    f"instances >= {GSD_MIN_TIME_S:g} s",
                     "median GSD time",
                     "p90 GSD time",
+                    "median GSD iterations (same instances)",
                     "median GSD iterations",
                     "p90 GSD iterations",
                     "max range ratio",
@@ -914,10 +1084,13 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
             + "\n\n"
         )
         w(
-            "GSD = geometric standard deviation over permutations of (t + shift) for times and "
-            "of iteration counts (1 = identical), over instances verified in every permutation. "
-            "Iteration counts do not depend on the machine, so their variability is "
-            "algorithmic; time variability also contains machine noise.\n\n"
+            "GSD = geometric standard deviation over permutations (1 = identical) of raw CPU "
+            "time and of iteration counts, over instances verified in every permutation. Time "
+            f"GSDs use only instances whose every time is at least {GSD_MIN_TIME_S:g} s, since "
+            "shorter times are dominated by the 15.6 ms timer step; the iteration GSD is given "
+            "for the same instances and for all verified ones. Iteration counts do not depend "
+            "on the machine, so their variability is algorithmic; time variability also "
+            "contains machine noise.\n\n"
         )
         rows = [
             [
@@ -929,8 +1102,8 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
             for c, d in t["two_level"].items()
         ]
         w(
-            "SGM ratio on the subset: one-level bootstrap on k = 0 only versus the two-level "
-            "bootstrap over instances and permutations:\n\n"
+            "SGM ratio on the subset: one-level bootstrap on k = 0 (original order) only "
+            "versus the two-level bootstrap over instances and permutations (all k):\n\n"
         )
         w(md_table(["config", "vs", "k = 0 only", "two-level (all k)"], rows) + "\n\n")
 
@@ -940,6 +1113,7 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
             [
                 c,
                 d["instances"],
+                d.get("instances_long", "-"),
                 f3(d["median_gsd_cpu"]),
                 f3(d["max_gsd_cpu"]),
                 f3(d["median_gsd_wall"]),
@@ -952,6 +1126,7 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
                 [
                     "config",
                     "instances",
+                    f"instances >= {GSD_MIN_TIME_S:g} s",
                     "median GSD CPU",
                     "max GSD CPU",
                     "median GSD wall",
@@ -965,11 +1140,13 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
     w("## What changes the ranking\n\n")
     w(
         f"Primary: {' < '.join(t['primary_ranking'])}. Kendall tau of each alternative ranking "
-        "to the primary one, and Holm-significant primary orderings that flip.\n\n"
+        "to its baseline (the primary ranking unless stated), and Holm-significant baseline "
+        "orderings that flip.\n\n"
     )
     rows = [
         [
             k,
+            d.get("baseline", "primary"),
             d["n_instances"],
             f3(d["tau"]),
             " < ".join(d["order"]),
@@ -977,7 +1154,12 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
         ]
         for k, d in t["sensitivity"].items()
     ]
-    w(md_table(["change", "instances", "tau", "ranking", "flipped significant pairs"], rows))
+    w(
+        md_table(
+            ["change", "baseline", "instances", "tau", "ranking", "flipped significant pairs"],
+            rows,
+        )
+    )
     w("\n\n")
     if option_table:
         w("## Solver options at epsilon = 1e-6 (verbatim)\n\n")
@@ -1004,7 +1186,7 @@ def write_figures(res: dict[str, Any], out_dir: Path) -> list[str]:
     out_dir.mkdir(parents=True, exist_ok=True)
     pr = res["profiles"]
     taus = np.array(pr["taus"])
-    fig, ax = plt.subplots(figsize=(7.5, 4.8))
+    fig, ax = plt.subplots(figsize=(9.0, 4.8))
     for c in res["meta"]["configs"]:
         rho = np.array(pr["rho"][c])
         hw = pr["sim_halfwidth"][c]
@@ -1025,7 +1207,7 @@ def write_figures(res: dict[str, Any], out_dir: Path) -> list[str]:
     ax.set_ylabel("share of instances")
     ax.set_title("Performance profiles, verified solves (simultaneous 95% bands)")
     ax.grid(True, which="major", alpha=0.3)
-    ax.legend(loc="lower right", fontsize=8)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), fontsize=8, frameon=False)
     fig.tight_layout()
     name = "performance_profiles.svg"
     buf = io.StringIO()

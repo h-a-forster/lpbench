@@ -42,10 +42,11 @@ class Block:
     subset_strata: str = "nnz_tertiles"
     subset_salt: str = ""  # distinguishes subsets of different blocks
     repeats: int = 1
+    instances: tuple[str, ...] = ()  # explicit instance ids ("suite/name"); overrides subset
 
     @property
     def is_subset(self) -> bool:
-        return self.subset_per_suite > 0
+        return self.subset_per_suite > 0 or bool(self.instances)
 
 
 @dataclass(frozen=True)
@@ -102,6 +103,17 @@ def _resolve_configs(value: Any, all_ids: tuple[str, ...], first_order: tuple[st
     raise ConfigError(f"bad configs value {value!r}")
 
 
+def _instance_ids(value: Any) -> tuple[str, ...]:
+    ids = tuple(str(v) for v in value)
+    for i in ids:
+        suite, _, name = i.partition("/")
+        if suite not in SUITES or not name:
+            raise ConfigError(f"instance ids must look like 'suite/name', got {i!r}")
+    if len(set(ids)) != len(ids):
+        raise ConfigError("duplicate instance ids in a block")
+    return ids
+
+
 def parse_config(raw: dict[str, Any]) -> StudyConfig:
     try:
         configs = tuple(raw["configs"])
@@ -146,6 +158,7 @@ def parse_config(raw: dict[str, Any]) -> StudyConfig:
                     subset_strata=str(subset.get("strata", "nnz_tertiles")),
                     subset_salt=str(subset.get("salt", b["name"])),
                     repeats=int(b.get("repeats", 1)),
+                    instances=_instance_ids(b.get("instances", [])),
                 )
             )
         names = [b.name for b in blocks]

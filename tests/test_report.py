@@ -27,6 +27,7 @@ def _rec(
     status: str = "OPTIMAL",
     eps: float = 1e-6,
     repeat: int = 0,
+    wall: float | None = None,
 ) -> dict:
     inst = f"{suite}/p{i}"
     ver = {e: ok for e in ("1e-04", "1e-06", "1e-08")}
@@ -43,7 +44,7 @@ def _rec(
         "repeat": repeat,
         "status": status,
         "solve_cpu_s": t,
-        "solve_wall_s": t * 1.01,
+        "solve_wall_s": min(t * 1.01, TL) if wall is None else wall,
         "unit_wall_s": t + 0.2,
         "total_iterations": 100 + k,
         "verified_at": ver,
@@ -103,11 +104,19 @@ def make_run(root: Path) -> Path:
         "blocks": [{"name": "main", "eps": 1e-6}, {"name": "eps1e-4", "eps": 1e-4}],
         "stats": {"bootstrap_resamples": 300},
     }
-    (run / "manifest.json").write_text(
-        json.dumps({"study": "synthetic", "config_hash": "h", "config": cfg, "provenance": {}}),
-        encoding="utf-8",
-    )
+    manifest = {
+        "study": "synthetic",
+        "config_hash": "h",
+        "config": cfg,
+        "provenance": {},
+        "history": [{"units_total": len(recs)}],
+    }
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     return run
+
+
+def _write(run: Path, rec: dict) -> None:
+    (run / "units" / f"{rec['unit_id']}.json").write_text(json.dumps(rec), encoding="utf-8")
 
 
 def test_build_exact_values(tmp_path: Path) -> None:
@@ -134,6 +143,88 @@ def test_build_exact_values(tmp_path: Path) -> None:
     sens = t["sensitivity"]
     assert sens["(a) trust solver status"]["tau"] == pytest.approx(1.0)
     assert "(e) PAR2" in sens and "(i) wall time instead of CPU time" in sens
+    assert res["meta"]["completeness"]["complete"] is True
+    # (c) is compared with the netlib-only primary ranking, not the all-instance one
+    c = next(v for k, v in sens.items() if k.startswith("(c)"))
+    assert c["baseline"] == "netlib only" and sens["(a) trust solver status"]["baseline"] == (
+        "primary"
+    )
+
+
+def test_eps_sensitivity_baseline_is_netlib_only(tmp_path: Path) -> None:
+    """If netlib alone ranks differently from all instances, the requested-epsilon analysis
+    (netlib only) must be compared with the netlib ranking: identical data give tau = 1."""
+    run_dir = make_run(tmp_path)
+    for suite, t in (("netlib", 0.001), ("miplib", 9.0)):  # scip fastest on netlib only
+        for i in range(8):
+            p = run_dir / "units" / f"main__{suite}__p{i}__p0__scip-soplex__e1e-06__r0.json"
+            r = json.loads(p.read_text(encoding="utf-8"))
+            r["solve_cpu_s"] = r["solve_wall_s"] = t
+            _write(run_dir, r)
+    res = R.build(R.load_run(run_dir))
+    sens = res["tables"]["sensitivity"]
+    c = next(v for k, v in sens.items() if k.startswith("(c)"))
+    g = sens["(g) suite netlib only"]
+    assert c["order"] == g["order"] and c["tau"] == pytest.approx(1.0)
+    assert g["tau"] < 1.0  # netlib alone differs from the primary ranking
+
+
+def test_failure_breakdown_examples_and_late_answers(tmp_path: Path) -> None:
+    run_dir = make_run(tmp_path)
+    # KKT passes but the objective is wrong (trento1-like): must be the top example
+    bad = _rec("main", "miplib", 1, "highs-pdlp", 0, 0.5, ok=False)
+    bad["max_rel"] = 1e-9
+    bad["ref_rel_error"] = 1.0
+    bad["verification"] = dict(bad["verification"], primal_residual=15.0, rel_primal_comp=0.9)
+    _write(run_dir, bad)
+    # primal residual too large
+    badp = _rec("main", "miplib", 2, "highs-pdlp", 0, 0.5, ok=False)
+    badp["verification"] = dict(badp["verification"], rel_primal=1e-3)
+    _write(run_dir, badp)
+    # verified, but returned after the wall-time limit: scored as TIME_LIMIT
+    late = _rec("main", "miplib", 3, "highs-pdlp", 0, 8.9, wall=10.85)
+    _write(run_dir, late)
+    res = R.build(R.load_run(run_dir))
+    v = res["tables"]["verification"]["highs-pdlp"]
+    assert v["examples"][0]["instance"] == "miplib/p1"
+    assert v["examples"][0]["primal_residual"] == 15.0
+    assert v["failed_criteria"] == {"P": 1, "ref": 1}
+    out = res["tables"]["outcomes"]["all"]["highs-pdlp"]
+    assert out["TIME_LIMIT"] == 3 and out["claimed_unverified"] == 2
+    assert res["meta"]["optimal_after_limit"] == [late["unit_id"]]
+    assert res["tables"]["solved_counts"]["highs-pdlp"] == 16 - 2 - 3
+
+
+def test_short_times_are_left_out_of_gsd(tmp_path: Path) -> None:
+    """Time GSDs use raw times and only instances whose every time is >= GSD_MIN_TIME_S."""
+    run_dir = make_run(tmp_path)
+    run = R.load_run(run_dir)
+    res = R.build(run)
+    var = res["tables"]["variability"]["highs-dsimplex"]
+    perm = [r for r in run.records if r["block"] == "perm" and r["config"] == "highs-dsimplex"]
+    main_t = {
+        r["instance"]: r["solve_cpu_s"]
+        for r in run.records
+        if r["block"] == "main" and r["config"] == "highs-dsimplex"
+    }
+    long_ = {r["instance"] for r in perm}
+    long_ = {i for i in long_ if main_t[i] >= R.GSD_MIN_TIME_S}
+    assert var["instances_long"] == len(long_) < var["instances"]
+    nz = res["tables"]["noise"]["highs-dsimplex"]
+    assert nz["instances_long"] <= nz["instances"]
+
+
+def test_incomplete_run_is_flagged(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    run_dir = make_run(tmp_path)
+    for p in sorted((run_dir / "units").glob("main__miplib__p*__highs-dsimplex__*.json"))[:3]:
+        p.unlink()
+    res = R.build(R.load_run(run_dir))
+    comp = res["meta"]["completeness"]
+    assert comp["complete"] is False and comp["missing"] == 3 and comp["main_missing_pairs"] == 3
+    out = tmp_path / "pub"
+    assert main(["report", str(run_dir), "--publish", str(out)]) == 0
+    assert "WARNING: incomplete run" in capsys.readouterr().err
+    assert "**Incomplete run:**" in (out / "summary.md").read_text(encoding="utf-8")
 
 
 def test_publish_is_byte_identical(tmp_path: Path) -> None:

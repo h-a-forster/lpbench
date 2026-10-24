@@ -45,10 +45,15 @@ configs = "all"
 eps = 1e-6
 perms = [1, 2, 3]
 
-# Machine noise: repeat the original order on a small subset.
+# Machine noise: repeat the original order on instances that both configs solve in about
+# 0.7-6 s (picked from the first quick run), far above the 15.6 ms CPU-timer step.
 [[blocks]]
 name = "noise"
-subset = { per_suite = 5, strata = "nnz_tertiles" }
+instances = [
+    "miplib/net12", "miplib/istanbul-no-cutoff", "miplib/piperout-27",
+    "miplib/comp21-2idx", "miplib/neos-3656078-kumeu", "miplib/peg-solitaire-a3",
+    "miplib/ns1208400", "netlib/MAROS-R7", "netlib/PILOT", "netlib/D2Q06C",
+]
 configs = ["highs-dsimplex", "highs-ipx"]
 eps = 1e-6
 perms = [0]
