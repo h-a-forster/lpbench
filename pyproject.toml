@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "lpbench"
-version = "0.0.1"
+version = "0.1.0"
 description = "An honest CPU benchmark of open-source LP solvers: every reported optimum independently verified, performance variability measured across seeds and permutations, bootstrap intervals on shifted geometric means and performance profiles."
 readme = "README.md"
 license = "MIT"

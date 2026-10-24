@@ -141,5 +141,22 @@ uv run python scripts/run_study.py --config full --out runs/full     # several h
   pointwise and simultaneous bands, Wilcoxon + Holm, rank stability, Kendall tau, GSD).
   Tests: `tests/test_stats.py` (hand values; slow: coverage of 95% intervals in 1000
   simulated studies, Clopper-Pearson check).
-- **Next:** pilot on a ~10% stratified sample (`configs/pilot.toml`), plan projection for
-  quick (apply the DESIGN 8 cuts if > 45 min), then M7 (`report.py`) and the quick study.
+- **Done (M5, pilot):** `configs/pilot.toml` (20 instances, 170 units). The pilot exposed
+  HiGHS PDLP stopping early with any finite `time_limit` (highspy 1.15.1, Windows);
+  standalone repro in `docs/repros/`, workaround: runner-enforced limit (DESIGN 12,
+  item 14). Projection for quick: 16.8 min, so none of the DESIGN 8 cuts were applied.
+- **Done (M7):** `report.py` and `lpbench report RUN_DIR --publish DIR` (results.json,
+  summary.md, units.csv, performance_profiles.svg; byte-identical on regeneration). Quick
+  study run: 2388 units in 35.9 min, one attempt, no CONFIG_ERROR; tables committed in
+  `docs/results/quick/`. Tests: `tests/test_report.py`.
+- **Done (M8):** `REPORT.md`, README, CHANGELOG 0.1.0 (version bumped, not tagged).
+- **Open / next:**
+  - The run-time projection underestimated the quick study by 2.1x (DESIGN 12, item 16);
+    replace tertile means with nearest neighbours in nnz (arithmetic means) in
+    `planning.py`.
+  - The full study (`configs/full.toml`) has not been run; it needs chunked runs
+    (`--max-units`) of under 45 min each.
+  - Check the HiGHS PDLP time-limit behaviour on Linux before reporting it upstream.
+  - `scip-soplex` "optimal" on `nu25-pr12` with a relative gap of 2.4e-3: the bug-claim
+    protocol is not done.
+  - The profile figure's legend overlaps the lower curves.

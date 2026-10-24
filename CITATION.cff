@@ -12,7 +12,7 @@ authors:
   - name: lpbench contributors
 repository-code: "https://github.com/h-a-forster/lpbench"
 license: MIT
-version: 0.0.1
+version: 0.1.0
 keywords:
   - linear programming
   - benchmarking
