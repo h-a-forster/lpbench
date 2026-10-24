@@ -132,11 +132,15 @@ def two_level_ratio_interval(
     B: int,
     rng: np.random.Generator,
     level: float = 0.95,
+    resample_replicates: bool = True,
 ) -> Interval:
-    """Two-level bootstrap with replicates (Davison and Hinkley 1997, 3.8).
+    """Bootstrap over instances with replicates (Davison and Hinkley 1997, 3.8).
 
     Resample instances; within each sampled instance resample replicate indices k, shared by
-    both configs to keep the pairing; collapse replicates, then take the SGM ratio.
+    both configs to keep the pairing; collapse replicates, then take the SGM ratio. With
+    ``resample_replicates=False`` only instances are resampled and each keeps all of its
+    replicates (the top-level scheme; resampling both levels counts the within-instance
+    variation twice and tends to be conservative).
     """
     n, _, K = T3.shape
     L = shifted_log(T3[:, [a, b], :], shift)  # (n, 2, K)
@@ -149,6 +153,8 @@ def two_level_ratio_interval(
     inst = rng.integers(0, n, size=(B, n))
     reps = rng.integers(0, K, size=(B, n, K))
     sel = L[inst]  # (B, n, 2, K)
+    if not resample_replicates:
+        return _percentile(ratio_from(sel.mean(axis=-1)), point, level)
     gathered = np.take_along_axis(sel, reps[:, :, None, :], axis=3)
     boot = ratio_from(gathered.mean(axis=-1))
     return _percentile(boot, point, level)

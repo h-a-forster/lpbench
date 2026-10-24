@@ -289,8 +289,18 @@ r_D <= eps * c_scale
 |P - D| <= eps * (1 + |P| + |D|)
 ```
 
-This mirrors the relative termination criteria of PDLP (Applegate et al., 2021) in the
-L-infinity norm. It is reported at epsilon in {1e-4, 1e-6, 1e-8} for every unit regardless
+This has the shape of PDLP's relative termination criteria (Applegate et al., 2021) in the
+L-infinity norm, but it is looser on the primal side: PDLP scales the primal residual by the
+constraint bounds only, while `b_scale` also includes the variable bounds `l` and `u`. On the
+206 quick-study instances `b_scale` is more than 10x the row-only scale on 33 and more than
+1000x on 18 (big-M bounds: `mas74`/`mas76` 1e12 against 1.6e5, `GROW7/15/22` 1.1e6 against
+1). Because the scale is one infinity norm, a single large bound also loosens the test for
+every other row: on `trento1` (one rhs of 1e10, the rest of order 1) `x = 0, y = 0` violates
+rows by 15 and still passes at 1e-8; only the reference objective rejects it. The pass rule is
+kept as preregistered; every record also carries two stricter primal measures as
+diagnostics, `rel_primal_rows` (row-only scale, as PDLP) and `rel_primal_comp`
+(componentwise, `max_i viol_i / (1 + |bound_i|)`), and the report counts the verified solves
+that fail them (DESIGN 12, item 18). It is reported at epsilon in {1e-4, 1e-6, 1e-8} for every unit regardless
 of the requested accuracy; the primary class equals the requested epsilon.
 
 Reference agreement: `|P - P_ref| <= eps_obj * (1 + |P_ref|)` with `eps_obj = eps`.
@@ -392,7 +402,11 @@ to the penalty value for any non-verified outcome.
 - **Paired SGM ratio** `R_{A,B} = SGM_A / SGM_B` over the same instances; percentile bootstrap
   with B = 10,000 resamples of instances (BCa as a sensitivity). With replicates, a two-level
   bootstrap: resample instances, then resample replicate indices k within each instance,
-  shared across configs to keep the pairing (Davison and Hinkley 1997, section 3.8).
+  shared across configs to keep the pairing (Davison and Hinkley 1997, section 3.8, discuss
+  hierarchical resampling). Resampling at both levels counts the within-instance variation
+  twice and tends to be conservative; the commonly recommended scheme resamples the top
+  level only. The report gives both (the top-level interval keeps each sampled instance's
+  permutations), see DESIGN 12, item 21.
 - **Performance profiles** (Dolan and Moré 2002): `r_{p,s} = t_{p,s} / min_s t_{p,s}`
   (r = infinity for failures), `rho_s(tau) = |{p : r_{p,s} <= tau}| / n`, on a log grid of
   tau from 1 to 1e4. Confidence bands: bootstrap instances; pointwise 95% percentile bands
@@ -409,7 +423,10 @@ to the penalty value for any non-verified outcome.
   k: geometric standard deviation of time and of iteration count, range ratio max/min, and
   status flips (verified in some k, not in others). Iteration counts are machine-independent,
   so their variability is purely algorithmic; time variability also contains machine noise.
-  Machine noise is estimated separately by repeating k = 0 three times on a small subset.
+  Machine noise is estimated separately by repeating k = 0 three times on a small set of
+  instances. Time GSDs use raw CPU times and only pairs whose every time is at least
+  0.5 s (32 steps of the Windows process clock; `report.GSD_MIN_TIME_S`), DESIGN 12,
+  item 20.
 - **What changes the ranking**: rankings by SGM under each single change from the primary
   analysis: (a) trust solver status instead of verification; (b) verify at 1e-4 or 1e-8
   instead of the requested epsilon; (c) requested epsilon 1e-4 (separate runs);
@@ -426,7 +443,7 @@ to the penalty value for any non-verified outcome.
 | Configs | 7 | 7 (+ clarabel if S1 lands) |
 | Requested epsilon | 1e-6 all; 1e-4 for first-order configs on netlib | 1e-4, 1e-6, 1e-8 (first-order configs at all three; others at 1e-6 and 1e-8) |
 | Permutations | k = 0 for all; k = 0..3 on a stratified subset of 30 instances | k = 0..4 for all |
-| Machine-noise repeats | k = 0 x 3 on 10 instances, 2 configs | k = 0 x 3 on 30 instances, all configs |
+| Machine-noise repeats | k = 0 x 3 on 10 listed instances of 0.7-6 s, 2 configs | k = 0 x 3 on 30 instances, all configs |
 | Time limit TL | 10 s (hard deadline 25 s) | 300 s (hard deadline 460 s) |
 | Workers | 3 | 3 (more on a dedicated machine; record it) |
 | Bootstrap B | 10,000 | 10,000 |
@@ -609,14 +626,14 @@ Recorded as they were made during implementation.
     no usable dual; after the change all but two pass the KKT check at 1e-8. A test
     (`test_scip_symmetry_handling_is_off`) reproduces the behaviour with the option on. This
     is a default suited to MIP, not a solver bug.
-13. **(M5) Reference pass outcome.** 112 of 114 MIPLIB relaxations have a consensus value
+13. **(M5) Reference pass outcome (first pass; see item 22).** 112 of 114 relaxations had a value
     (108 with all three configs agreeing). `dano3_3` and `dano3_5` have none: only
     `ortools-glop` finished within 60 s, so they keep no reference and are not eligible for
     the subsets (item 11); the KKT check still verifies them in the main block. On
-    `nu25-pr12`, `scip-soplex` returned "optimal" with a relative primal residual of 2.4e-3
-    at `feastol` 1e-9 and was excluded from the consensus by the KKT filter. This is
-    recorded as an observation only; no bug-claim protocol (minimal repro, adapter
-    exclusion) was completed.
+    `nu25-pr12`, `scip-soplex` returned "optimal" with a relative duality gap of 2.4e-3 (the
+    primal residual was 3.6e-15 and the primal objective equal to the other configs') at
+    `feastol` 1e-9 and was excluded from the consensus by the KKT filter. This was an
+    adapter bug, not SCIP behaviour (item 17).
 14. **(M5) External time limit for `highs-pdlp`.** In the highspy 1.15.1 wheel on Windows,
     HiGHS PDLP (cuPDLP-C) stops with "Time limit reached" long before any finite
     `time_limit` has passed (10 s limit: stopped after 0.02 s). The pilot found it: 26 of
@@ -638,3 +655,61 @@ Recorded as they were made during implementation.
     instances in each tertile (first 64 units: 652 s measured, 75 s predicted). The run
     still met the 45 min budget. A better predictor (nearest neighbours in nnz, arithmetic
     means) is listed as future work in AGENTS.md.
+17. **(review) SCIP singleton-row duals.** The first quick run's adapter took
+    `getDualsolLinear` only for rows with two or more entries and rebuilt every singleton
+    row's dual from the variable's reduced cost. SCIP can also keep a singleton row as an LP
+    row with its own dual. In MIPLIB `nu25-pr12`, column C5837 is in two identical rows
+    `x >= 1` (R2260, R2287); SCIP reported the multiplier 250 on R2287 and a reduced cost
+    of -0.0, so the adapter returned 0 for both rows and the dual objective came out exactly
+    250 too low (relative gap 2.4e-3, primal residual 3.6e-15). The adapter now starts every
+    row from `getDualsolLinear` and adds the reduced-cost split to the tightest singleton
+    row only for the part SCIP moved into a bound. Regression test:
+    `test_scip_duplicate_singleton_rows`. The reference pass was re-run for `scip-soplex`
+    (item 22), and the quick study was re-run in full.
+18. **(review) Verifier scaling.** Section 5.2 now states that `b_scale` includes variable
+    bounds (looser than PDLP's row-only primal scale) and that one large bound loosens the
+    test for every row (`trento1`: x = 0 passes at 1e-8). The pass rule is unchanged, as
+    preregistered. Records carry `rel_primal_rows` and `rel_primal_comp`, and the report
+    counts verified solves that fail them at the main epsilon. Quick study: row-only scale
+    4 (`highs-pdlp`) and 3 (`highs-hipdlp`); componentwise 29, 36 and 58 (`ortools-pdlp`);
+    no simplex or IPM solve fails either. The report's "largest errors" table sorts by the
+    larger of the KKT measure and the reference error and shows the absolute primal
+    residual, and a table breaks failures down by criterion. A componentwise pass rule is a
+    candidate for the full study; changing it needs a new preregistration.
+19. **(review) Harness checkpoints and caches.** A unit whose input cannot be prepared is
+    no longer written as an ERROR record (such records counted as done and were never
+    retried); it is logged as NOT RUN, `lpbench run` exits 5 and the wrapper does not
+    retry. Older "prepare failed" records are treated as not done. Permuted MPS files are
+    named `<name>__s<seed>__p<k>.mps`, because a permutation depends on (seed, name, k) and
+    a cache shared by studies with different seeds silently reused the wrong permutation.
+    `lpbench report` compares the records with the manifest's `units_total` and the main
+    grid, and warns (stderr and a banner in `summary.md`) when a run is incomplete.
+20. **(review) Variability and noise measures.** The first report computed GSDs of
+    `t + 1 s`, which flattens sub-second variation to about 1.01, and its noise subset was
+    mostly near the timer resolution. Time GSDs now use raw times and only (instance,
+    config) pairs whose every time is at least 0.5 s; the iteration GSD is also given on the
+    same instances. Blocks accept an explicit `instances` list, and the quick noise block
+    lists ten instances that `highs-dsimplex` and `highs-ipx` solved in 0.7-6 s in the
+    first run. The quick permutation subset has only 3-5 instances above 0.5 s per
+    simplex/IPM config, so the time-variability numbers are indicative.
+21. **(review) Comparisons and budgets.** (a) The requested-epsilon sensitivity (Netlib
+    only) is compared with the Netlib-only primary ranking, and permutations k >= 1 with
+    k = 0 on the same subset; before, both were compared with the all-instance ranking, so
+    the change of instance set was attributed to epsilon or permutation. (b) A solve that
+    returns after `time_limit` s of wall time is scored as TIME_LIMIT for every config.
+    In-library limits are wall-clock, so only the externally limited `highs-pdlp` could
+    return later (one verified unit at 10.85 s wall in the first run). CPU-time limits are
+    not available in OR-Tools PDLP or HiGHS, so under contention the in-library configs get
+    less than `time_limit` CPU seconds; REPORT Limitations says so. (c) Next to the
+    two-level bootstrap (instances and replicates), the report gives the top-level
+    bootstrap (instances only, each keeping its replicates). The citation in section 7
+    could not be checked against the book; resampling both levels is the conservative
+    choice.
+22. **(review) Second quick run and reference re-run.** After items 17-21 the reference
+    pass was re-run for `scip-soplex` (114 units, 71 s). It now agrees on `nu25-pr12` and
+    `qap10`, and finished `dano3_3` and `dano3_5` in 28 s (in the first pass it was stopped
+    at 59 s wall with 52 s of CPU, under load), so all 114 MIPLIB relaxations have a
+    consensus value (`dano3_3`/`dano3_5`: GLOP and SCIP agree to 4e-15). The two instances
+    became eligible for the subsets (item 11), which changed 7 of the 15 MIPLIB instances
+    of the permutation subset. The quick study was re-run in full: 2388 units in 21.4 min
+    (projection 16.9 min), one attempt. The first run's records are not published.

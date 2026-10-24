@@ -214,7 +214,7 @@ class Runner:
         """Units with a record for the current config hash.
 
         Harness-side failures are not results: a record of a unit whose input could not be
-        prepared (written by versions before 0.1.1) does not count as done, so a rerun after
+        prepared (written by earlier versions) does not count as done, so a rerun after
         fixing the data runs it.
         """
         done = set()

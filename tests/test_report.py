@@ -149,6 +149,8 @@ def test_build_exact_values(tmp_path: Path) -> None:
     assert c["baseline"] == "netlib only" and sens["(a) trust solver status"]["baseline"] == (
         "primary"
     )
+    assert sens["(h) permutation k=0 (subset)"]["baseline"] == "primary"
+    assert sens["(h) permutation k=1 (subset)"]["baseline"] == "subset, k=0"
 
 
 def test_eps_sensitivity_baseline_is_netlib_only(tmp_path: Path) -> None:

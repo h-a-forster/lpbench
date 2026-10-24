@@ -131,3 +131,17 @@ def test_bootstrap_coverage() -> None:
         covered += iv.lo <= true_ratio <= iv.hi
     lo, hi = S.clopper_pearson(covered, reps, 0.999)
     assert lo <= 0.95 <= hi, covered
+
+
+def test_top_level_bootstrap_is_narrower_with_replicate_noise() -> None:
+    """Resampling replicates as well adds within-instance variation a second time."""
+    rng = np.random.default_rng(4)
+    base = rng.lognormal(0, 1, 40)
+    noise = rng.lognormal(0, 0.5, (40, 2, 4))
+    T3 = np.stack([1.5 * base, base], axis=1)[:, :, None] * noise
+    both = S.two_level_ratio_interval(T3, 0, 1, 0.0, 2000, np.random.default_rng(5))
+    top = S.two_level_ratio_interval(
+        T3, 0, 1, 0.0, 2000, np.random.default_rng(5), resample_replicates=False
+    )
+    assert both.point == top.point
+    assert (top.hi / top.lo) < (both.hi / both.lo)

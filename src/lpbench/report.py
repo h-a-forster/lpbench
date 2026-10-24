@@ -572,10 +572,16 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
     perm_insts = sorted({r["instance"] for r in perm_recs})
     if perm_insts:
         ks = sorted({r["k"] for r in perm_recs})
+        sub_base = None
         for k in [0, *ks]:
             src = main if k == 0 else [r for r in perm_recs if r["k"] == k]
             Th, _, _ = matrix(src, perm_insts, configs, solved_verified(ek), TL)
-            add(f"(h) permutation k={k} (subset)", Th)
+            # k = 0 against the primary ranking shows the effect of the subset; k >= 1
+            # against k = 0 on the same subset shows the effect of the permutation alone
+            add(f"(h) permutation k={k} (subset)", Th, baseline=sub_base)
+            if k == 0:
+                sub_sig = significant_pairs(pairwise(Th, configs, shift, B, seed, 30))
+                sub_base = ("subset, k=0", ranking(Th, configs, shift), sub_sig)
     Ti, _, _ = matrix(main, perf_insts, configs, solved_verified(ek), TL, time_key="solve_wall_s")
     add("(i) wall time instead of CPU time", Ti)
     pool = sorted(perf_insts, key=lambda i: (inst_suite[i], inst_nnz[i], i))
@@ -663,7 +669,15 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
                 continue
             iv1 = S.ratio_interval(T3[:, :, 0], j, base, shift, B, _rng(seed, 5, j))
             iv2 = S.two_level_ratio_interval(T3, j, base, shift, B, _rng(seed, 6, j))
-            two[c] = {"vs": configs[base], "one_level": iv1.as_tuple(), "two_level": iv2.as_tuple()}
+            iv3 = S.two_level_ratio_interval(
+                T3, j, base, shift, B, _rng(seed, 7, j), resample_replicates=False
+            )
+            two[c] = {
+                "vs": configs[base],
+                "one_level": iv1.as_tuple(),
+                "two_level": iv2.as_tuple(),
+                "top_level": iv3.as_tuple(),
+            }
         res["tables"]["two_level"] = two
         res["meta"]["perm_subset"] = {"instances": len(perm_insts), "ks": ks_all}
 
@@ -1098,14 +1112,19 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
                 d["vs"],
                 f"{f3(d['one_level'][0])} [{f3(d['one_level'][1])}, {f3(d['one_level'][2])}]",
                 f"{f3(d['two_level'][0])} [{f3(d['two_level'][1])}, {f3(d['two_level'][2])}]",
+                f"[{f3(d['top_level'][1])}, {f3(d['top_level'][2])}]" if "top_level" in d else "-",
             ]
             for c, d in t["two_level"].items()
         ]
         w(
             "SGM ratio on the subset: one-level bootstrap on k = 0 (original order) only "
-            "versus the two-level bootstrap over instances and permutations (all k):\n\n"
+            "versus bootstraps over all k: resampling instances and permutations (two-level), "
+            "and resampling instances only, each keeping its permutations (top level):\n\n"
         )
-        w(md_table(["config", "vs", "k = 0 only", "two-level (all k)"], rows) + "\n\n")
+        w(
+            md_table(["config", "vs", "k = 0 only", "two-level (all k)", "top level (all k)"], rows)
+            + "\n\n"
+        )
 
     if "noise" in t:
         w("## Machine noise (identical units repeated)\n\n")

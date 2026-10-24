@@ -42,7 +42,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 
 | Path | Role | State |
 |---|---|---|
-| `src/lpbench/cli.py` | `versions`, `fetch`, `prepare`, `plan`, `run`, `status` done; `reference`, `report` exit 2 until implemented | partial |
+| `src/lpbench/cli.py` | `versions`, `fetch`, `prepare`, `plan`, `run`, `status` done; `reference`, `report` | done |
 | `src/lpbench/versions.py` | library versions, SCIP/HiGHS lib versions, platform, git SHA | done |
 | `src/lpbench/config.py` | StudyConfig, validation, config hash | done (M2; blocks used from M4) |
 | `src/lpbench/lpmodel.py` | CanonicalLP, HiGHS extraction, permutations, exact free-MPS writer | done (M1) |
@@ -78,17 +78,21 @@ uv run ruff format --check .
 CI (`.github/workflows/ci.yml`) runs on `pull_request` and `workflow_dispatch` only:
 ubuntu py3.11, ubuntu py3.13, windows py3.13, plus a lint job.
 
-## How to run the study (once M2-M7 land)
+## How to run the study
 
 ```sh
 uv run lpbench fetch --config quick
 uv run lpbench prepare --config quick
 uv run lpbench reference --config quick
-uv run lpbench plan --config quick
-uv run python scripts/run_study.py --config quick --out runs/quick   # target < 45 min, 3 workers
+uv run python scripts/run_study.py --config pilot --out runs/pilot   # needed for the projection
+uv run lpbench plan --config quick --pilot runs/pilot
+uv run python scripts/run_study.py --config quick --out runs/quick --pilot runs/pilot   # < 45 min
 uv run lpbench report runs/quick --publish docs/results/quick
-uv run python scripts/run_study.py --config full --out runs/full     # several hours
+uv run python scripts/run_study.py --config full --out runs/full --max-units 100   # repeat; hours
 ```
+
+Without `--pilot` the run refuses (exit 3: the worst-case bound exceeds 45 min). Exit 5
+means some units could not be prepared (no record written; fetch/prepare, then rerun).
 
 ## Status and next steps
 
@@ -133,7 +137,7 @@ uv run python scripts/run_study.py --config full --out runs/full     # several h
   `os._exit` crash, permutation k = 1 gives the k = 0 objective, config validation.
 - **Done (M5, reference part):** `reference.py` and `lpbench reference` (three simplex
   configs at eps 1e-9, 60 s, as a normal checkpointed run in `runs/<config>-reference`).
-  Consensus for 112/114 MIPLIB relaxations in `src/lpbench/data/miplib_reference.csv`
+  Consensus for 112/114 MIPLIB relaxations at the time (114/114 after the review re-run) in `src/lpbench/data/miplib_reference.csv`
   (no value for dano3_3, dano3_5). Found and fixed: SCIP symmetry handling adds SST cuts to
   pure LPs (DESIGN 12, items 12-13). Tests: `tests/test_reference.py`,
   `test_scip_symmetry_handling_is_off`.
@@ -150,13 +154,26 @@ uv run python scripts/run_study.py --config full --out runs/full     # several h
   study run: 2388 units in 35.9 min, one attempt, no CONFIG_ERROR; tables committed in
   `docs/results/quick/`. Tests: `tests/test_report.py`.
 - **Done (M8):** `REPORT.md`, README, CHANGELOG 0.1.0 (version bumped, not tagged).
+- **Done (review fixes, 2026-10-24):** SCIP singleton-row dual bug (the `nu25-pr12`
+  "unverified optimum" was ours; DESIGN 12, item 17), prepare failures no longer
+  checkpointed, seed in permuted MPS names, report completeness warning, raw-time GSDs on
+  instances >= 0.5 s with an explicit noise instance list, epsilon/permutation
+  sensitivities against same-instance baselines, uniform wall-time budget in scoring,
+  failure breakdown, verifier diagnostics (row-only and componentwise primal), top-level
+  bootstrap column, README/AGENTS pilot step, legend outside the profile plot (DESIGN 12,
+  items 17-22). Reference pass re-run for SCIP (now 114/114 consensus), quick study re-run
+  in full (2388 units, 21.4 min, one attempt), `REPORT.md` rewritten. Rejected review
+  points: none.
 - **Open / next:**
-  - The run-time projection underestimated the quick study by 2.1x (DESIGN 12, item 16);
-    replace tertile means with nearest neighbours in nnz (arithmetic means) in
-    `planning.py`.
+  - The run-time projection underestimated the first quick run by 2.1x (second run 1.3x;
+    DESIGN 12, item 16); replace tertile means with nearest neighbours in nnz (arithmetic
+    means) in `planning.py`.
+  - Before the full study, decide whether to preregister a componentwise primal pass rule
+    (DESIGN 12, item 18): 29-58 verified first-order solves per config fail it at 1e-6.
+  - The permutation subset has only 3-5 instances above 0.5 s per simplex/IPM config;
+    time-variability results need the full study (300 s, larger instances).
+  - Reference values depend on machine load (a 60 s wall limit); consider a CPU-based
+    stop or a longer limit for the reference pass.
   - The full study (`configs/full.toml`) has not been run; it needs chunked runs
     (`--max-units`) of under 45 min each.
   - Check the HiGHS PDLP time-limit behaviour on Linux before reporting it upstream.
-  - `scip-soplex` "optimal" on `nu25-pr12` with a relative gap of 2.4e-3: the bug-claim
-    protocol is not done.
-  - The profile figure's legend overlaps the lower curves.

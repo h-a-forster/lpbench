@@ -3,6 +3,37 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). This
 project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Fixed
+
+- SCIP adapter: singleton-row duals start from `getDualsolLinear`; a dual SCIP kept on one
+  of two identical singleton rows was dropped, which made `nu25-pr12` look like an
+  unverified SCIP optimum (DESIGN 12, item 17).
+- Runner: a unit whose input cannot be prepared is no longer checkpointed as a final ERROR
+  record (`lpbench run` exits 5); older such records are rerun.
+- Permuted MPS files carry the permutation seed in their name, so studies with different
+  seeds cannot reuse each other's permutations.
+- Report: variability and noise use raw times on instances of at least 0.5 s instead of
+  `t + 1 s`; the requested-epsilon and permutation sensitivities are compared with
+  rankings on the same instances; answers after the wall-time limit count as TIME_LIMIT
+  for every config; the profile legend no longer covers the curves.
+- README and AGENTS quick-start commands include the pilot step that `lpbench run` needs.
+
+### Added
+
+- `lpbench report` warns when a run is incomplete; failure breakdown by criterion;
+  absolute and componentwise primal residuals; top-level bootstrap next to the two-level
+  one.
+- Verifier diagnostics `rel_primal_rows` (PDLP's row-only scale) and `rel_primal_comp`
+  (componentwise).
+- Config blocks accept an explicit `instances` list.
+
+### Changed
+
+- Quick study re-run with these fixes (2388 units, 21.4 min) and `REPORT.md` rewritten;
+  MIPLIB consensus references now exist for all 114 relaxations (DESIGN 12, item 22).
+
 ## 0.1.0 - 2026-10-24
 
 First release: the harness, its validation and the quick study.

@@ -8,18 +8,23 @@ over instances (B = 10,000, seeded) unless stated otherwise. This is the sized-d
 `quick` study (DESIGN section 8). The full-size study (300 s limit, MIPLIB relaxations up to
 1e6 nonzeros, five permutations) has not been run; its command is at the end.
 
+This is the second run of the quick study. The first run (35.9 min) was discarded after a
+review found an lpbench bug in the SCIP adapter (below) and several reporting problems;
+DESIGN section 12, items 17-22, lists what changed. Every config was re-run so that all
+numbers come from one run of one code version.
+
 ## Setup
 
 | | |
 |---|---|
-| Instances | 92 Netlib LPs (all but 6 files that are generators, bundles or use GUB markers; exact optima from Koch 2004), 114 LP relaxations of MIPLIB 2017 benchmark instances with nnz <= 1e5 (multi-solver consensus optima for 112) |
+| Instances | 92 Netlib LPs (all but 6 files that are generators, bundles or use GUB markers; exact optima from Koch 2004), 114 LP relaxations of MIPLIB 2017 benchmark instances with nnz <= 1e5 (multi-solver consensus optima for all 114) |
 | Configs | `highs-dsimplex`, `highs-ipx`, `highs-pdlp`, `highs-hipdlp` (highspy 1.15.1); `ortools-glop`, `ortools-pdlp` (ortools 9.15.6755); `scip-soplex` (pyscipopt 6.3.0, SCIP 10.0, presolving off) |
 | Accuracy | requested epsilon 1e-6; every claimed optimum checked by lpbench's own verifier at 1e-4, 1e-6 and 1e-8 (relative primal residual, dual residual and gap, plus agreement with the reference objective) |
-| Limits | 10 s per solve, hard deadline 25 s, one solver thread per process, 3 worker processes |
-| Blocks | main grid (206 instances x 7 configs, original order); first-order configs again at epsilon 1e-4 on Netlib (276 units); permutations k = 1, 2, 3 of a stratified 30-instance subset (630 units); repeats of identical units for machine noise (40 units) |
-| Scoring | process CPU seconds; a solve that is not verified counts as the time limit (PAR1); shifted geometric mean (SGM) with a 1 s shift |
+| Limits | 10 s per solve (wall clock, enforced inside each library except `highs-pdlp`), hard deadline 25 s, one solver thread per process, 3 worker processes |
+| Blocks | main grid (206 instances x 7 configs, original order); first-order configs again at epsilon 1e-4 on Netlib (276 units); permutations k = 1, 2, 3 of a stratified 30-instance subset (630 units); two repeats of identical units on 10 instances that take 0.7-6 s, for machine noise (40 units) |
+| Scoring | process CPU seconds; a solve that is not verified, or that returns after 10 s of wall time, counts as the time limit (PAR1); shifted geometric mean (SGM) with a 1 s shift |
 | Machine | Windows 11, x86-64, 16 logical CPUs, Python 3.13.1; shared with other work during the run |
-| Run | 2388 units in 35.9 min wall time, in one attempt (no retries, no CONFIG_ERROR); seed 20261024 |
+| Run | 2388 units in 21.4 min wall time, in one attempt (no retries, no CONFIG_ERROR, no killed units); seed 20261024 |
 
 ## Results
 
@@ -30,45 +35,49 @@ over instances (B = 10,000, seeded) unless stated otherwise. This is the sized-d
 | highs-ipx | 206 / 206 | 0 | 0 | 0 |
 | ortools-glop | 205 | 0 | 0 | 1 |
 | highs-dsimplex | 200 | 0 | 6 | 0 |
-| scip-soplex | 195 | 1 | 10 | 0 |
-| ortools-pdlp | 113 | 38 | 55 | 0 |
-| highs-pdlp | 79 | 77 | 35 | 15 |
-| highs-hipdlp | 73 | 83 | 38 | 12 |
+| scip-soplex | 198 | 0 | 8 | 0 |
+| ortools-pdlp | 121 | 49 | 36 | 0 |
+| highs-pdlp | 83 | 81 | 24 | 18 |
+| highs-hipdlp | 73 | 91 | 29 | 13 |
 
-The simplex and interior-point configs solve almost everything. With a 10 s limit, the
-three first-order (PDLP) configs verify between 35% and 55% of instances.
+The simplex and interior-point configs solve almost everything, and none of their optimal
+claims fails verification at 1e-6. With a 10 s limit, the three first-order (PDLP) configs
+verify between 35% and 59% of instances. These counts depend on machine load: the
+in-library limits are wall-clock, and in the first run, on a busier machine, the PDLP
+configs verified 79, 73 and 113 (see Limitations).
 
 ### Speed
 
 | config | SGM, all 206 (s) | SGM, MIPLIB | SGM, Netlib |
 |---|---|---|---|
-| highs-dsimplex | 0.274 [0.192, 0.373] | 0.376 [0.245, 0.543] | 0.157 [0.080, 0.265] |
-| ortools-glop | 0.284 [0.198, 0.384] | 0.389 [0.252, 0.558] | 0.165 [0.082, 0.277] |
-| highs-ipx | 0.289 [0.220, 0.369] | 0.431 [0.311, 0.574] | 0.132 [0.084, 0.196] |
-| scip-soplex | 0.465 [0.340, 0.610] | 0.631 [0.435, 0.874] | 0.283 [0.156, 0.455] |
-| ortools-pdlp | 3.18 [2.64, 3.79] | 2.81 [2.16, 3.58] | 3.68 [2.81, 4.72] |
-| highs-pdlp | 4.02 [3.36, 4.78] | 3.34 [2.58, 4.27] | 5.01 [3.91, 6.33] |
-| highs-hipdlp | 4.18 [3.50, 4.97] | 3.76 [2.88, 4.77] | 4.75 [3.68, 6.02] |
+| ortools-glop | 0.251 [0.177, 0.339] | 0.344 [0.225, 0.490] | 0.145 [0.072, 0.245] |
+| highs-dsimplex | 0.253 [0.176, 0.348] | 0.347 [0.224, 0.506] | 0.145 [0.073, 0.246] |
+| highs-ipx | 0.260 [0.199, 0.328] | 0.387 [0.283, 0.509] | 0.117 [0.073, 0.174] |
+| scip-soplex | 0.406 [0.296, 0.534] | 0.537 [0.371, 0.745] | 0.259 [0.142, 0.414] |
+| ortools-pdlp | 2.53 [2.06, 3.07] | 2.14 [1.59, 2.81] | 3.09 [2.32, 4.02] |
+| highs-pdlp | 3.64 [2.99, 4.38] | 2.83 [2.13, 3.72] | 4.87 [3.78, 6.19] |
+| highs-hipdlp | 3.96 [3.29, 4.76] | 3.50 [2.64, 4.49] | 4.60 [3.53, 5.88] |
 
 What the data support:
 
-- **The top three cannot be ordered with confidence.** `highs-dsimplex`, `ortools-glop` and
-  `highs-ipx` have SGMs within 6% of each other, and every pairwise SGM-ratio interval
-  covers 1: dsimplex/glop 0.964 [0.813, 1.12], dsimplex/ipx 0.946 [0.766, 1.15],
-  ipx/glop 1.02 [0.863, 1.23]. In the bootstrap, each of the three is fastest with
-  probability 0.55, 0.24 and 0.22. The Wilcoxon signed-rank tests, which compare paired
-  per-instance times, are Holm-significant for dsimplex vs ipx (p = 0.0002) and ipx vs
-  glop (p < 1e-4), but not for dsimplex vs glop (p = 0.073). The two simplex codes are
-  faster on most instances; IPX is faster on fewer, but by more. The ranking among these
-  three is the part most sensitive to analysis choices (below).
-- **`scip-soplex` is slower than the top three:** 1.7x the SGM of `highs-dsimplex`
-  (ratio 0.588 [0.489, 0.692], Holm p < 1e-4). It ranks fourth in every bootstrap
+- **The top three cannot be ordered with confidence.** `ortools-glop`, `highs-dsimplex`
+  and `highs-ipx` have SGMs within 4% of each other, and every pairwise SGM-ratio interval
+  covers 1: dsimplex/glop 1.01 [0.830, 1.19], dsimplex/ipx 0.975 [0.772, 1.20],
+  ipx/glop 1.03 [0.865, 1.26]. In the bootstrap, each of the three is fastest with
+  probability 0.39 (GLOP), 0.36 (dual simplex) and 0.25 (IPX). The Wilcoxon signed-rank
+  tests, which compare paired per-instance times, are Holm-significant for all three pairs
+  (dsimplex vs glop p = 0.034, dsimplex vs ipx p = 0.001, ipx vs glop p < 1e-4): the two
+  simplex codes are faster than IPX on most instances, and IPX is faster on fewer, but by
+  more. The first run ranked dual simplex first and GLOP second; this order is the part
+  most sensitive to analysis choices and to the run (below).
+- **`scip-soplex` is slower than the top three:** 1.6x the SGM of `highs-dsimplex`
+  (ratio 0.624 [0.525, 0.729], Holm p < 1e-4). It ranks fourth in every bootstrap
   resample. It runs with presolving off, which lpbench needs to obtain duals, so this is
   slower than SCIP's default.
-- **The first-order configs are 11 to 15 times slower by SGM at this time limit**, mainly
+- **The first-order configs are 10 to 16 times slower by SGM at this time limit**, mainly
   because most of their failures are scored at 10 s. Among them, `ortools-pdlp` is fastest
-  (5th with probability 0.995). `highs-pdlp` and `highs-hipdlp` are not distinguishable
-  (ratio 0.962 [0.805, 1.15], Holm p = 0.82).
+  (5th in all but a handful of resamples). `highs-pdlp` and `highs-hipdlp` are not
+  distinguishable (ratio 0.918 [0.754, 1.11], Holm p = 0.83).
 
 The performance profiles with simultaneous 95% bands are in
 [docs/results/quick/performance_profiles.svg](docs/results/quick/performance_profiles.svg).
@@ -84,64 +93,108 @@ on the original data.
 | highs-dsimplex | 200 | 0 | 0 | 0 |
 | highs-ipx | 206 | 0 | 0 | 2 |
 | ortools-glop | 205 | 0 | 0 | 0 |
-| scip-soplex | 196 | 1 | 1 | 2 |
-| ortools-pdlp | 151 | 4 | 38 | 127 |
-| highs-pdlp | 156 | 1 | 77 | 133 |
-| highs-hipdlp | 156 | 3 | 83 | 145 |
+| scip-soplex | 198 | 0 | 0 | 1 |
+| ortools-pdlp | 170 | 5 | 49 | 144 |
+| highs-pdlp | 164 | 1 | 81 | 141 |
+| highs-hipdlp | 164 | 3 | 91 | 153 |
+
+Which criteria the failures at 1e-6 miss (P primal residual, D dual residual, G gap, ref
+reference objective; a "+" means both):
+
+| config | P | D | G | ref only | P+D | P+ref | D+ref | G+ref | P+G | P+D+ref |
+|---|---|---|---|---|---|---|---|---|---|---|
+| highs-pdlp | 19 | 15 | 0 | 19 | 11 | 14 | 3 | 0 | 0 | 0 |
+| highs-hipdlp | 17 | 15 | 14 | 18 | 2 | 5 | 5 | 8 | 5 | 2 |
+| ortools-pdlp | 0 | 0 | 15 | 27 | 0 | 0 | 0 | 7 | 0 | 0 |
 
 - With epsilon set to 1e-6, the HiGHS PDLP solvers' "optimal" solutions fail lpbench's
-  1e-6 check about half the time (77 and 83 of 156), and the `ortools-pdlp` ones a quarter
-  of the time (38 of 151). Nearly all pass at 1e-4. The typical miss is a relative primal
-  residual or gap of 1e-6 to 1e-4. This is consistent with tolerances applied to the
-  scaled problem; it is a tolerance-definition effect, not evidence of a bug.
+  1e-6 check about half the time (81 and 91 of 164), and the `ortools-pdlp` ones 29% of
+  the time (49 of 170). Nearly all pass at 1e-4. The failures differ by solver. For
+  `ortools-pdlp`, 27 of 49 pass the KKT check and miss only the reference objective, and
+  the rest miss the gap; its primal and dual residuals never fail. For `highs-pdlp`, the
+  gap never fails; the primal residual is involved in 44 failures, the dual residual in
+  29, and 19 miss only the reference. `highs-hipdlp` misses every criterion in some cases.
+  This is consistent with tolerances applied to the scaled problem or measured in another
+  norm. No bug claim is made.
+- **The relative KKT check alone can accept a wrong answer.** Its primal scale is one
+  infinity norm over all bounds, so one big-M value loosens the test for every row. On
+  MIPLIB `trento1` (one right-hand side of 1e10, the others of order 1), `ortools-pdlp`
+  returned x = 0, y = 0 as OPTIMAL; this violates rows by 15 and has objective 0 against
+  a reference of 5.18e6, yet passes the relative check even at 1e-8. Only the reference
+  objective rejects it. Two stricter primal measures are recorded as diagnostics. Scaled
+  by the constraint bounds only, as PDLP's own relative criterion is, 4 (`highs-pdlp`) and
+  3 (`highs-hipdlp`) verified solves would fail at 1e-6. Scaled componentwise (each
+  violation by its own bound), 29 (`highs-pdlp`), 36 (`highs-hipdlp`) and 58
+  (`ortools-pdlp`, of 121) verified first-order solves would fail, and no simplex or IPM
+  solve would. "Verified" for a first-order solve therefore means verified under lpbench's
+  preregistered definition, which is looser than a componentwise check.
 - Asking the first-order solvers for 1e-4 does not make them verify more at 1e-4. On Netlib,
-  the 1e-4 runs verify 21 (`highs-pdlp`), 26 (`highs-hipdlp`) and 45 (`ortools-pdlp`) of 92
-  at 1e-4, against 26, 28 and 47 verified at 1e-6 by the 1e-6 runs. In the 1e-4 runs, 53,
-  43 and 26 claimed optima fail the 1e-4 check.
-- `scip-soplex` claimed optimality on MIPLIB `nu25-pr12` with a relative duality gap of
-  2.4e-3. It did the same in the reference pass at `feastol` 1e-9. This is recorded as an
-  observation; the bug-claim protocol (minimal reproduction, adapter exclusion) was not
-  completed for it.
+  the 1e-4 runs verify 21 (`highs-pdlp`), 26 (`highs-hipdlp`) and 52 (`ortools-pdlp`) of 92
+  at 1e-4, against 27, 28 and 51 verified at 1e-6 by the 1e-6 runs. In the 1e-4 runs, 58,
+  47 and 28 claimed optima fail the 1e-4 check.
+- The first run recorded one `scip-soplex` optimum that failed verification (`nu25-pr12`,
+  relative gap 2.4e-3). That was a bug in lpbench's SCIP adapter, not in SCIP: the
+  adapter discarded a dual that SCIP reported on one of two identical singleton rows
+  (DESIGN 12, item 17). With the fix, `scip-soplex` verifies `nu25-pr12` with gap 0.
 
 ### What changes the ranking
 
-Kendall's tau compares each alternative ranking of the seven configs with the primary
-ranking (1 = identical). A "flip" is a primary ordering that was Holm-significant and
-reverses.
+Kendall's tau compares each alternative ranking of the seven configs with a baseline
+ranking (1 = identical). The baseline is the primary ranking, except where an analysis
+also changes the instance set: the requested-epsilon analysis (Netlib only) is compared
+with the Netlib-only primary ranking, and permutations k = 1..3 with k = 0 on the same
+subset. A "flip" is a baseline ordering that was Holm-significant and reverses.
 
 | change | tau | flips |
 |---|---|---|
 | trust solver status instead of verifying | 0.71 | `ortools-pdlp` drops from 5th to 7th: it claims optimality less often, but its claims are more often right |
-| verify at 1e-4 | 0.71 | same as trusting status |
-| verify at 1e-8 | 0.90 | none |
-| requested epsilon 1e-4 (Netlib) | 0.71 | `highs-ipx` becomes fastest |
-| shift 0.1 s / 10 s | 0.90 / 0.81 | 10 s: `highs-ipx` becomes fastest |
-| PAR2 (failures count double) | 0.81 | `ortools-glop` first, `highs-ipx` ahead of `highs-dsimplex` |
-| time limit cut to 1 s / 3 s after the fact | 0.81 / 1.00 | none |
-| MIPLIB only / Netlib only | 1.00 / 0.71 | Netlib: `highs-ipx` fastest |
-| each permutation k = 0..3 (30-instance subset) | 0.90 each | none; all four permutations give the same ranking |
+| verify at 1e-4 | 0.81 | `ortools-pdlp` drops to 7th |
+| verify at 1e-8 | 1.00 | none |
+| requested epsilon 1e-4 (Netlib; against Netlib only) | 1.00 | none |
+| shift 0.1 s / 10 s | 1.00 / 0.81 | 10 s: `highs-ipx` becomes fastest |
+| PAR2 (failures count double) | 0.90 | `highs-ipx` ahead of `highs-dsimplex` |
+| time limit cut to 1 s / 3 s after the fact | 1.00 / 0.90 | 3 s: `highs-dsimplex` ahead of `ortools-glop` |
+| MIPLIB only / Netlib only | 1.00 / 0.62 | Netlib: `highs-ipx` fastest, `highs-dsimplex` ahead of `ortools-glop` |
+| 30-instance subset, k = 0 (against primary) | 0.90 | `highs-dsimplex` ahead of `ortools-glop` |
+| permutations k = 1 / 2 / 3 (against k = 0) | 1.00 / 0.90 / 0.90 | k = 2, 3: `highs-pdlp` and `ortools-pdlp` swap (not a significant pair) |
 | wall time instead of CPU time | 1.00 | none |
-| size tertiles 1 / 2 / 3 | 0.81 / 0.71 / 0.81 | IPX moves up on mid-sized and large instances |
+| size tertiles 1 / 2 / 3 | 0.90 / 0.90 / 0.90 | tertile 2: IPX ahead of dual simplex; tertile 3: dual simplex ahead of GLOP |
 
 The split between fast exact methods (simplex, IPM) and the first-order methods never
-changes. The order inside the top three depends on the suite, the shift and the penalty,
-which matches the overlapping intervals above. On this instance set, "which of HiGHS dual
-simplex, GLOP and IPX is fastest" has no robust answer.
+changes. The order inside the top three depends on the suite, the shift, the penalty and
+the run, which matches the overlapping intervals above. On this instance set, "which of
+HiGHS dual simplex, GLOP and IPX is fastest" has no robust answer. Requesting epsilon 1e-4
+instead of 1e-6 does not change the Netlib ranking at all; the first run reported a change
+there only because it compared a Netlib-only ranking with the all-instance one.
 
 ### Variability and noise
 
-- **Permutations** (30 instances, k = 0..3). For the simplex and IPM configs, the median
-  geometric SD of solve time is 1.01 and iteration counts vary a little more (median GSD
-  1.05 to 1.08; 90th percentile up to 1.30 for `scip-soplex`). The first-order configs
-  change status under permutation: `highs-pdlp` on 7 of 30 instances, `ortools-pdlp` on 5,
-  `highs-hipdlp` on 2. The simplex and IPM configs never do. Intervals from the two-level
-  bootstrap over instances and permutations are only slightly wider than k = 0 alone (for
-  example, `scip-soplex`/`highs-dsimplex`: 1.44 [0.947, 2.44] vs 1.62 [1.08, 2.82]).
-- **Machine noise.** Repeating identical units (10 instances, `highs-dsimplex` and
-  `highs-ipx`, three runs each) gave a median CPU-time GSD of 1.01 (max 1.02) and identical
-  iteration counts every time.
-- **Contention.** Wall/CPU ratio over units with more than 0.5 s of CPU: median 1.03,
-  90th percentile 1.26, max 2.24. Ranking by wall time instead of CPU time gives the
+- **Permutations** (30 instances, k = 0..3). The first-order configs change status under
+  permutation: `highs-pdlp` and `ortools-pdlp` on 6 of 30 instances, `highs-hipdlp` on 2.
+  The simplex and IPM configs never do. Times are compared on raw CPU seconds, and only
+  where every permutation took at least 0.5 s, since shorter times are dominated by the
+  15.6 ms timer step. That leaves only 3 to 5 instances per simplex/IPM config, so these
+  numbers are indicative: the median geometric SD of time is 1.07 to 1.13 for dual
+  simplex, IPX and GLOP and 1.33 for `scip-soplex`, against 1.03 to 1.06 for iteration
+  counts on the same instances. Time varies more than iteration counts, so a permutation
+  changes the cost per iteration as well as the number of iterations; machine noise
+  (below, GSD about 1.03) explains only part of the difference. A 0.1 s cut-off (8 to 13
+  instances) gives the same picture.
+- **Two-level intervals.** Bootstraps over instances and all four permutations give
+  intervals of about the same width as k = 0 alone, for example `scip-soplex` /
+  `highs-dsimplex`: 1.95 [1.41, 2.91] with k = 0 only, 2.01 [1.42, 3.17] resampling
+  instances and permutations, [1.42, 3.20] resampling instances only. On this subset the
+  point estimate moves little between k = 0 and the average over k. (In the first run, on
+  a different subset, the original order k = 0 was consistently faster for `scip-soplex`
+  than the random permutations; that run's report also gave the two intervals of this
+  example in the wrong order.)
+- **Machine noise.** Repeating identical units (10 instances of 0.7 to 6 s,
+  `highs-dsimplex` and `highs-ipx`, three runs each) gave a median CPU-time GSD of 1.03 and
+  1.04 (max 1.18 and 1.20) and identical iteration counts every time. The first run's
+  noise figure (1.01) was computed on t + 1 s, mostly for instances near the timer
+  resolution, so it said little.
+- **Contention.** Wall/CPU ratio over units with more than 0.5 s of CPU: median 1.00,
+  90th percentile 1.02, max 1.27. Ranking by wall time instead of CPU time gives the
   identical order.
 
 ## Problems found in the libraries or in their use
@@ -152,39 +205,53 @@ simplex, GLOP and IPX is fastest" has no robust answer.
    that uses no lpbench code is in
    [docs/repros/highs-pdlp-time-limit.md](docs/repros/highs-pdlp-time-limit.md). It is
    reproduced on one platform only and has not been reported upstream. lpbench enforces
-   this config's limit externally (TL + 5 s, then TIME_LIMIT).
+   this config's limit externally (TL + 5 s, then TIME_LIMIT; an answer after 10 s of wall
+   time is scored as TIME_LIMIT, like every other config).
 2. **SCIP adds symmetry-breaking constraints to pure LPs** even with presolving off, which
    changes the LP and the length of its dual vector. This is a MIP-oriented default, not a
    bug; lpbench sets `misc/usesymmetry = 0` (DESIGN 12, item 12).
 3. Interface details handled in the adapters, none of them bugs: GLOP reports unbounded
-   problems as infeasible through MPSolver; SCIP keeps singleton rows as bounds, so their
-   duals must be rebuilt from reduced costs; HiGHS PDLP terminates on `kkt_tolerance`
-   rather than `pdlp_optimality_tolerance` (DESIGN 12, items 6-9).
-4. `highs-hipdlp` did not stop at its 10 s limit on two Netlib instances at epsilon 1e-4
-   (D2Q06C, DFL001) and was killed at the 25 s hard deadline. Both are scored as failures.
+   problems as infeasible through MPSolver; SCIP keeps a singleton row either as a bound
+   (its dual is then in the reduced cost) or as an LP row with its own dual, so the
+   adapter combines both; HiGHS PDLP terminates on `kkt_tolerance` rather than
+   `pdlp_optimality_tolerance` (DESIGN 12, items 6-9 and 17).
+4. An lpbench bug, not a library problem: the first run's SCIP adapter ignored the LP dual
+   of singleton rows and rebuilt it from the reduced cost alone, which loses the dual when
+   SCIP keeps such a row in its LP (two identical rows `x >= 1` in `nu25-pr12`). Fixed,
+   with a regression test (DESIGN 12, item 17).
 
 ## Limitations
 
 - **Short time limit, small instances.** A 10 s limit and instances of at most 1e5
   nonzeros are where simplex and IPM are strongest. First-order methods target much larger
   problems, often on GPUs. These results do not say how PDLP compares at scale.
-- **One shared Windows machine.** Other jobs ran at the same time, so wall time is noisy;
-  the contention check above bounds the effect. Process CPU time on this machine advances
-  in 15.6 ms steps, so profile ratios use times floored at 0.02 s (DESIGN 12, item 15).
-  Library behaviour may differ on Linux; the PDLP time-limit issue was seen only here.
+- **One shared Windows machine; wall-clock limits.** Other jobs ran at the same time. The
+  libraries enforce the 10 s limit in wall time while scoring uses CPU time, so a solve on
+  a busy machine gets less than 10 s of CPU before it is stopped. In the first run,
+  `ortools-pdlp` and `highs-hipdlp` time-limit units had a median of 9.4 and 9.5 CPU s
+  and a minimum of 5.2 and 4.5. This mostly affects the first-order configs, which often
+  run to the limit, and is why their solved counts differ between the two runs (this run:
+  wall/CPU median 1.00). Process CPU time on this machine advances in 15.6 ms steps, so
+  profile ratios use times floored at 0.02 s (DESIGN 12, item 15). Library behaviour may
+  differ on Linux; the PDLP time-limit issue was seen only here.
 - **`scip-soplex` is not default SCIP.** Presolving, heuristics, separation, propagation
   and symmetry handling are off so that the LP and its duals are the ones given.
+- **The verifier's primal test is lenient on badly scaled instances**, as the `trento1`
+  case and the componentwise diagnostic show. The reference objective is what catches
+  such answers, so the KKT check is not a sufficient oracle on its own; in this run every
+  instance has a reference.
 - **The MIPLIB references are partly circular.** They are consensus values of three of the
-  benchmarked configs (at 1e-9), so they cannot catch an error those three share. The KKT
-  check is the primary oracle. `dano3_3` and `dano3_5` have no consensus value and are
-  verified by the KKT check alone.
-- **Small subsets.** Permutation results rest on 30 instances and noise results on 10.
-  Rank probabilities and intervals resample instances from this collection; they do not
-  describe LPs in general.
-- **Different stopping rules.** `highs-pdlp` can run up to 5 s past the limit before it is
-  stopped. This costs wall time only: every failure is scored at the limit.
-- **The plan underestimated the run time:** projected 16.8 min, actual 35.9 min (DESIGN 12,
-  item 16). The run still finished within the 45 min budget.
+  benchmarked configs (at 1e-9), so they cannot catch an error those three share. Whether
+  a config finishes the 60 s reference solve depends on machine load: after the SCIP fix
+  the reference pass was re-run for `scip-soplex`, which this time finished `dano3_3` and
+  `dano3_5` (28 s; before, it was stopped at 59 s wall with 52 s of CPU), so these two now
+  have a two-config consensus. That made them eligible for the stratified subset and
+  changed 7 of its 15 MIPLIB instances relative to the first run.
+- **Small subsets.** Permutation results rest on 30 instances (time variability on 3 to 5
+  of them) and noise results on 10. Rank probabilities and intervals resample instances
+  from this collection; they do not describe LPs in general.
+- **Run-time projection.** The plan underestimated the first run (16.8 min projected,
+  35.9 min actual; DESIGN 12, item 16). This run took 21.4 min against 16.9 min projected.
 - No third-party bug is claimed except item 1 above, and that claim is limited to one
   platform.
 
@@ -203,7 +270,7 @@ uv run lpbench report runs/quick --publish docs/results/quick
 The full-size study uses a 300 s limit, MIPLIB relaxations up to 1e6 nonzeros and five
 permutations. It takes many hours, so it is run in resumable chunks. Each invocation
 finishes and checkpoints after `--max-units` units; repeat until `lpbench status runs/full`
-shows every unit:
+shows every unit (`lpbench report` warns if any are missing):
 
 ```sh
 uv run lpbench fetch --config full && uv run lpbench prepare --config full
