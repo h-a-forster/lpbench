@@ -1028,7 +1028,9 @@ def write_figures(res: dict[str, Any], out_dir: Path) -> list[str]:
     ax.legend(loc="lower right", fontsize=8)
     fig.tight_layout()
     name = "performance_profiles.svg"
-    fig.savefig(out_dir / name, metadata={"Date": None})
+    buf = io.StringIO()
+    fig.savefig(buf, format="svg", metadata={"Date": None})
+    (out_dir / name).write_text(buf.getvalue(), encoding="utf-8", newline="\n")
     plt.close(fig)
     return [name]
 

@@ -143,9 +143,11 @@ def test_publish_is_byte_identical(tmp_path: Path) -> None:
     R.publish(run, b)
     for name in ("results.json", "summary.md", "units.csv"):
         assert (a / name).read_bytes() == (b / name).read_bytes(), name
+        assert b"\r" not in (a / name).read_bytes(), name  # LF only, stable under git
     md = (a / "summary.md").read_text(encoding="utf-8")
     assert "## What changes the ranking" in md and "nan" not in md.lower()
     if (a / "performance_profiles.svg").exists():
         assert (a / "performance_profiles.svg").read_bytes() == (
             b / "performance_profiles.svg"
         ).read_bytes()
+        assert b"\r" not in (a / "performance_profiles.svg").read_bytes()
