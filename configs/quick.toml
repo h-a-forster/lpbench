@@ -1,5 +1,4 @@
 # Quick study: sized for < 45 min wall on 3 workers (docs/DESIGN.md, section 8).
-# Draft until M4 implements config validation; keys may change, and DESIGN.md is updated with them.
 name = "quick"
 workers = 3
 time_limit_s = 10.0

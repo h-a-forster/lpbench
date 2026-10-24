@@ -1,6 +1,6 @@
 # lpbench design
 
-Status: being implemented milestone by milestone (see AGENTS.md, "Status and next steps").
+Status: M0-M8 implemented (v0.1.0); quick study run, results in REPORT.md. Deviations from this plan are in section 12.
 Every deviation made while implementing is recorded in section 12 in the same change.
 
 ## 1. Question and contribution
@@ -456,8 +456,8 @@ uv run lpbench reference --config quick          # MIPLIB consensus values (cach
 uv run lpbench plan --config quick
 uv run python scripts/run_study.py --config quick --out runs/quick
 uv run lpbench report runs/quick --publish docs/results/quick
-# full size (several hours; projection printed by `plan` after the quick run):
-uv run python scripts/run_study.py --config full --out runs/full
+# full size (many hours): resumable chunks, repeated until `lpbench status` shows all units
+uv run python scripts/run_study.py --config full --out runs/full --max-units 100
 ```
 
 The stratified permutation subset: 15 netlib + 15 miplib instances, chosen by a seeded draw
@@ -626,3 +626,15 @@ Recorded as they were made during implementation.
     `time_limit + 5 s` (`EXTERNAL_TL_GRACE_S`) and records TIME_LIMIT, and a solve that ends
     after the limit is scored TIME_LIMIT. `highs-hipdlp` is not affected and keeps the
     in-library limit.
+15. **(M7) Timer resolution on Windows.** Process CPU time advances in steps of 1/64 s
+    (15.6 ms) on the study machine, although `time.get_clock_info` reports 1e-7. Effects:
+    performance-profile ratios use times floored at 0.02 s (`report.PROFILE_FLOOR_S`), so
+    that a 0-versus-15.6 ms difference is not an infinite or 64x ratio. The hidden-thread
+    flag requires CPU > 1.2 x wall + 0.05 s on solves longer than 0.25 s. SGMs use the 1 s
+    shift, which makes the steps negligible.
+16. **(M7) Projection error.** The pilot-based projection for the quick study was 16.8 min.
+    The run took 35.9 min. Of the 2388 units, 2155 were predicted from (config, suite,
+    size tertile) means of a 20-instance pilot, and those means underweight the largest
+    instances in each tertile (first 64 units: 652 s measured, 75 s predicted). The run
+    still met the 45 min budget. A better predictor (nearest neighbours in nnz, arithmetic
+    means) is listed as future work in AGENTS.md.

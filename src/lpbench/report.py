@@ -236,10 +236,14 @@ def ranking(T: np.ndarray, configs: list[str], shift: float) -> dict[str, float]
 
 
 def significant_pairs(pw: list[dict[str, Any]], alpha: float = 0.05) -> list[tuple[str, str]]:
-    """Ordered pairs (faster, slower) with a Holm-significant difference."""
+    """Ordered pairs (faster, slower) with a Holm-significant difference.
+
+    The Wilcoxon test is about the paired median difference and the ratio about SGMs; a pair
+    counts only when both point the same way.
+    """
     out = []
     for r in pw:
-        if r["p_holm"] < alpha:
+        if r["p_holm"] < alpha and (r["ratio"] < 1) == (r["median_log_diff"] < 0):
             out.append((r["a"], r["b"]) if r["ratio"] < 1 else (r["b"], r["a"]))
     return out
 

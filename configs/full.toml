@@ -1,5 +1,5 @@
 # Full study: documented, not run by default (several hours; `lpbench plan` prints the
-# projection). Draft until M4 implements config validation.
+# projection).
 name = "full"
 workers = 3
 time_limit_s = 300.0
