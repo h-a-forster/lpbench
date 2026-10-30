@@ -55,8 +55,8 @@ claims about GPU solvers, multi-threaded performance or commercial solvers.
   residual check and is caught only by the reference objective.
 - With a finite `time_limit`, HiGHS PDLP in the highspy 1.15.1 wheel stopped after a tiny
   fraction of the limit on Windows (standalone reproduction:
-  [docs/repros/](docs/repros/highs-pdlp-time-limit.md)). lpbench enforces that config's
-  limit externally.
+  [docs/repros/](docs/repros/highs-pdlp-time-limit.md); fixed upstream, not yet released).
+  lpbench enforces that config's limit externally.
 
 These numbers hold for small instances and a short limit, on one shared Windows machine;
 they say nothing about first-order methods at scale.
@@ -148,7 +148,8 @@ uv run ruff check . && uv run ruff format --check .
   validation, statistics, study design and every deviation from the plan (section 12).
 - [REPORT.md](REPORT.md): results of the quick study, with intervals and limitations.
 - [docs/repros/](docs/repros/highs-pdlp-time-limit.md): minimal reproductions of library
-  behaviour that lpbench works around.
+  behaviour that lpbench works around; upstream status in
+  [docs/upstream/](docs/upstream/highs-pdlp-time-limit.md).
 - [CONTRIBUTING.md](CONTRIBUTING.md), [CHANGELOG.md](CHANGELOG.md).
 
 ## Citation

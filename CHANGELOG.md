@@ -5,38 +5,11 @@ project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
 
-### Fixed
+## 0.1.0 - 2026-10-30
 
-- SCIP adapter: singleton-row duals start from `getDualsolLinear`; a dual SCIP kept on one
-  of two identical singleton rows was dropped, which made `nu25-pr12` look like an
-  unverified SCIP optimum (DESIGN 12, item 17).
-- Runner: a unit whose input cannot be prepared is no longer checkpointed as a final ERROR
-  record (`lpbench run` exits 5); older such records are rerun.
-- Permuted MPS files carry the permutation seed in their name, so studies with different
-  seeds cannot reuse each other's permutations.
-- Report: variability and noise use raw times on instances of at least 0.5 s instead of
-  `t + 1 s`; the requested-epsilon and permutation sensitivities are compared with
-  rankings on the same instances; answers after the wall-time limit count as TIME_LIMIT
-  for every config; the profile legend no longer covers the curves.
-- README and AGENTS quick-start commands include the pilot step that `lpbench run` needs.
-
-### Added
-
-- `lpbench report` warns when a run is incomplete; failure breakdown by criterion;
-  absolute and componentwise primal residuals; top-level bootstrap next to the two-level
-  one.
-- Verifier diagnostics `rel_primal_rows` (PDLP's row-only scale) and `rel_primal_comp`
-  (componentwise).
-- Config blocks accept an explicit `instances` list.
-
-### Changed
-
-- Quick study re-run with these fixes (2388 units, 21.4 min) and `REPORT.md` rewritten;
-  MIPLIB consensus references now exist for all 114 relaxations (DESIGN 12, item 22).
-
-## 0.1.0 - 2026-10-24
-
-First release: the harness, its validation and the quick study.
+First release: the harness, its validation and the quick study. A first quick run on
+2026-10-24 was discarded after review; the sections that mention it list what changed
+before the published run.
 
 ### Added
 
@@ -54,7 +27,7 @@ First release: the harness, its validation and the quick study.
 - Runner: persistent single-thread workers, hard deadlines with kill and respawn, atomic
   per-unit records, resume on rerun, progress log, `plan` with a pilot-based projection,
   and `scripts/run_study.py` (retry wrapper with path-scrubbed log).
-- `lpbench reference`: consensus objectives for 112 of 114 MIPLIB relaxations from three
+- `lpbench reference`: consensus objectives for all 114 MIPLIB relaxations from three
   simplex codes at 1e-9.
 - Statistics (`stats.py`): shifted geometric means, PAR-k, percentile, BCa and two-level
   bootstrap, performance profiles with pointwise and simultaneous bands, Wilcoxon with
@@ -69,6 +42,39 @@ First release: the harness, its validation and the quick study.
 
 - SCIP runs with symmetry handling off (it added constraints to pure LPs), and
   `highs-pdlp`'s time limit is enforced by the runner (DESIGN 12, items 12 and 14).
+
+### Fixed after the first quick run (found in review)
+
+- SCIP adapter: singleton-row duals start from `getDualsolLinear`; a dual SCIP kept on one
+  of two identical singleton rows was dropped, which made `nu25-pr12` look like an
+  unverified SCIP optimum (DESIGN 12, item 17).
+- Runner: a unit whose input cannot be prepared is no longer checkpointed as a final ERROR
+  record (`lpbench run` exits 5); older such records are rerun.
+- Permuted MPS files carry the permutation seed in their name, so studies with different
+  seeds cannot reuse each other's permutations.
+- Report: variability and noise use raw times on instances of at least 0.5 s instead of
+  `t + 1 s`; the requested-epsilon and permutation sensitivities are compared with
+  rankings on the same instances; answers after the wall-time limit count as TIME_LIMIT
+  for every config; the profile legend no longer covers the curves.
+- README and AGENTS quick-start commands include the pilot step that `lpbench run` needs.
+
+### Added after the first quick run
+
+- `lpbench report` warns when a run is incomplete; failure breakdown by criterion;
+  absolute and componentwise primal residuals; top-level bootstrap next to the two-level
+  one.
+- Verifier diagnostics `rel_primal_rows` (PDLP's row-only scale) and `rel_primal_comp`
+  (componentwise).
+- Config blocks accept an explicit `instances` list.
+
+### Changed after the first quick run
+
+- Quick study re-run with these fixes (2388 units, 21.4 min) and `REPORT.md` rewritten;
+  MIPLIB consensus references now exist for all 114 relaxations (DESIGN 12, item 22).
+- The HiGHS PDLP time-limit reproduction was re-run on highspy 1.15.1, still the latest
+  release; the cause is fixed upstream but not yet released
+  (`docs/upstream/highs-pdlp-time-limit.md`).
+- CI actions pinned to commit SHAs.
 
 ### Scaffold (0.0.1)
 

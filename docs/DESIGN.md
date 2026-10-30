@@ -642,7 +642,8 @@ Recorded as they were made during implementation.
     no longer passes `time_limit` for this config. The runner kills the worker at
     `time_limit + 5 s` (`EXTERNAL_TL_GRACE_S`) and records TIME_LIMIT, and a solve that ends
     after the limit is scored TIME_LIMIT. `highs-hipdlp` is not affected and keeps the
-    in-library limit.
+    in-library limit. HiGHS pull request #3450 (merged 2026-10-22, unreleased as of
+    highspy 1.15.1) fixes the cause: cuPDLP-C's clock returned milliseconds on Windows.
 15. **(M7) Timer resolution on Windows.** Process CPU time advances in steps of 1/64 s
     (15.6 ms) on the study machine, although `time.get_clock_info` reports 1e-7. Effects:
     performance-profile ratios use times floored at 0.02 s (`report.PROFILE_FLOOR_S`), so
@@ -713,3 +714,13 @@ Recorded as they were made during implementation.
     became eligible for the subsets (item 11), which changed 7 of the 15 MIPLIB instances
     of the permutation subset. The quick study was re-run in full: 2388 units in 21.4 min
     (projection 16.9 min), one attempt. The first run's records are not published.
+23. **(release) Projection error re-measured; predictor kept.** From the pilot records and
+    both quick runs: LPT scheduling is accurate (the LPT makespan of the second run's
+    measured unit times is 20.5 min, the run took 21.4 min). The error is in the unit
+    times: the projection's 2388 predicted unit times sum to 3041 s, the second run's
+    measured ones to 3694 s (1.21x) and the first run's to 5434 s (1.79x, on a busier
+    machine). The nearest-neighbour predictor proposed in item 16 (arithmetic mean of the
+    k pilot instances nearest in log nnz, same config, k = 1, 3, 5 or 8, with or without
+    matching the suite) projects 13.9-19.2 min, no better than the tertile means
+    (16.9 min), so `planning.py` is unchanged. Machine load and a 20-instance pilot limit
+    the projection; the 45 min budget leaves room for the observed 1.3x.

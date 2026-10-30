@@ -42,7 +42,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 
 | Path | Role | State |
 |---|---|---|
-| `src/lpbench/cli.py` | `versions`, `fetch`, `prepare`, `plan`, `run`, `status` done; `reference`, `report` | done |
+| `src/lpbench/cli.py` | `versions`, `fetch`, `prepare`, `reference`, `plan`, `run`, `status`, `report` | done |
 | `src/lpbench/versions.py` | library versions, SCIP/HiGHS lib versions, platform, git SHA | done |
 | `src/lpbench/config.py` | StudyConfig, validation, config hash | done (M2; blocks used from M4) |
 | `src/lpbench/lpmodel.py` | CanonicalLP, HiGHS extraction, permutations, exact free-MPS writer | done (M1) |
@@ -57,10 +57,10 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 | `src/lpbench/worker.py`, `runner.py` | persistent workers, hard deadlines, checkpoints | done (M4) |
 | `src/lpbench/planning.py` | unit counts, worst case, pilot-based LPT projection | done (M4) |
 | `scripts/run_study.py` | resume-on-failure wrapper, scrubbed `wrapper.log` | done (M4) |
-| `src/lpbench/reference.py` | consensus references for MIPLIB relaxations | M5 |
-| `src/lpbench/stats.py` | SGM, bootstrap, profiles with bands, ranks, Holm | M6 |
-| `src/lpbench/report.py` | tables, figures, ranking sensitivity | M7 |
-| `configs/quick.toml`, `configs/full.toml` | study configs (draft keys until M4) | draft |
+| `src/lpbench/reference.py` | consensus references for MIPLIB relaxations | done (M5) |
+| `src/lpbench/stats.py` | SGM, bootstrap, profiles with bands, ranks, Holm | done (M6) |
+| `src/lpbench/report.py` | tables, figures, ranking sensitivity | done (M7) |
+| `configs/pilot.toml`, `configs/quick.toml`, `configs/full.toml` | study configs | done (full not run) |
 | `tests/test_solver_env.py` | pinned wheels solve a tiny LP; dual sign convention | done |
 | `tests/test_scaffold.py` | metadata, CLI, provenance hygiene | done |
 | `docs/DESIGN.md` | spec | done (v0.0.1) |
@@ -74,6 +74,9 @@ uv run pytest --runslow      # adds slow tests
 uv run ruff check .
 uv run ruff format --check .
 ```
+
+On Windows `tests/test_runner.py` alone took about 6 min (2026-10-30): each test spawns
+workers that import every solver.
 
 CI (`.github/workflows/ci.yml`) runs on `pull_request` and `workflow_dispatch` only:
 ubuntu py3.11, ubuntu py3.13, windows py3.13, plus a lint job.
@@ -164,10 +167,11 @@ means some units could not be prepared (no record written; fetch/prepare, then r
   items 17-22). Reference pass re-run for SCIP (now 114/114 consensus), quick study re-run
   in full (2388 units, 21.4 min, one attempt), `REPORT.md` rewritten. Rejected review
   points: none.
-- **Open / next:**
-  - The run-time projection underestimated the first quick run by 2.1x (second run 1.3x;
-    DESIGN 12, item 16); replace tertile means with nearest neighbours in nnz (arithmetic
-    means) in `planning.py`.
+- **Done (release prep, 2026-10-30):** CHANGELOG 0.1.0 dated (no tag yet), release notes
+  in `docs/release-notes-0.1.0.md`, PDLP repro re-checked on highspy 1.15.1 and the
+  upstream status in `docs/upstream/`, CI actions pinned to SHAs. The run-time projection
+  was re-measured: nearest neighbours do not beat the tertile means (DESIGN 12, item 23).
+- **Open / next (2026-10-30):**
   - Before the full study, decide whether to preregister a componentwise primal pass rule
     (DESIGN 12, item 18): 29-58 verified first-order solves per config fail it at 1e-6.
   - The permutation subset has only 3-5 instances above 0.5 s per simplex/IPM config;
@@ -176,4 +180,6 @@ means some units could not be prepared (no record written; fetch/prepare, then r
     stop or a longer limit for the reference pass.
   - The full study (`configs/full.toml`) has not been run; it needs chunked runs
     (`--max-units`) of under 45 min each.
-  - Check the HiGHS PDLP time-limit behaviour on Linux before reporting it upstream.
+  - HiGHS PDLP time limit: fixed upstream (HiGHS #3450), not in highspy 1.15.1. When a
+    release has it, follow `docs/upstream/highs-pdlp-time-limit.md` (bump, re-run the
+    repro, drop the external limit and its upstream test).

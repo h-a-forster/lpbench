@@ -1,8 +1,11 @@
 # HiGHS PDLP stops early when `time_limit` is finite
 
 **Status:** reproduced on one machine and one platform (Windows 11, x86-64, Python 3.13,
-highspy 1.15.1 wheel). It has not been checked on Linux or macOS and has not been reported
-upstream. lpbench works around it (DESIGN 12, item 14).
+highspy 1.15.1 wheel), last on 2026-10-30 with highspy 1.15.1, still the latest release.
+It has not been checked on Linux or macOS. The cause is fixed upstream (HiGHS pull request
+#3450, merged 2026-10-22, not yet released); see
+[docs/upstream/highs-pdlp-time-limit.md](../upstream/highs-pdlp-time-limit.md). lpbench
+works around it (DESIGN 12, item 14).
 
 ## Observation
 
@@ -18,7 +21,9 @@ limit (a 10 s limit stops them after 10.0 s).
 
 [`highs_pdlp_time_limit.py`](highs_pdlp_time_limit.py) needs only `highspy` and `numpy`.
 It builds a random feasible, bounded LP in memory (no files, no lpbench code) and solves it
-four times. Output on the machine above:
+four times. Output on the machine above (the iteration count at the early stop varies
+from run to run; a re-run on 2026-10-30 stopped after 281 and 590 iterations in 0.08 and
+0.11 s):
 
 ```
 highspy 1.15.1
