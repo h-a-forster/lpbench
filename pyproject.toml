@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling>=1.24"]
+requires = ["hatchling>=1.26"]  # license-files as a list
 build-backend = "hatchling.build"
 
 [project]
@@ -58,7 +58,7 @@ packages = ["src/lpbench"]
 
 [tool.hatch.build.targets.sdist]
 include = [
-    "src/lpbench", "tests", "docs", "configs", "scripts", "README.md", "LICENSE",
+    "src/lpbench", "tests", "docs", "configs", "scripts", "README.md", "REPORT.md", "LICENSE",
     "CHANGELOG.md", "CONTRIBUTING.md", "SECURITY.md", "CITATION.cff",
 ]
 

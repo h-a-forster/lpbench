@@ -24,7 +24,7 @@ numbers come from one run of one code version. The first run's tables stay in gi
 | Limits | 10 s per solve (wall clock, enforced inside each library except `highs-pdlp`), hard deadline 25 s, one solver thread per process, 3 worker processes |
 | Blocks | main grid (206 instances x 7 configs, original order); first-order configs again at epsilon 1e-4 on Netlib (276 units); permutations k = 1, 2, 3 of a stratified 30-instance subset (630 units); two repeats of identical units on 10 instances that take 0.7-6 s, for machine noise (40 units) |
 | Scoring | process CPU seconds; a solve that is not verified, or that returns after 10 s of wall time, counts as the time limit (PAR1); shifted geometric mean (SGM) with a 1 s shift |
-| Machine | Windows 11, x86-64, 16 logical CPUs, Python 3.13.1; shared with other work during the run |
+| Machine | Windows 11, x86-64 (AMD family 23 model 104), 16 logical CPUs, Python 3.13.1; shared with other work during the run |
 | Run | 2388 units in 21.4 min wall time, in one attempt (no retries, no CONFIG_ERROR, no killed units); seed 20261024 |
 
 ## Results
@@ -72,8 +72,9 @@ What the data support:
 - **The top three cannot be ordered with confidence.** `ortools-glop`, `highs-dsimplex`
   and `highs-ipx` have SGMs within 4% of each other, and every pairwise SGM-ratio interval
   covers 1: dsimplex/glop 1.01 [0.830, 1.19], dsimplex/ipx 0.975 [0.772, 1.20],
-  ipx/glop 1.03 [0.865, 1.26]. In the bootstrap, each of the three is fastest with
-  probability 0.39 (GLOP), 0.36 (dual simplex) and 0.25 (IPX). The Wilcoxon signed-rank
+  ipx/glop 1.03 [0.865, 1.26] (the BCa intervals in the tables agree). In the bootstrap,
+  each of the three is fastest with probability 0.39 (GLOP), 0.36 (dual simplex) and 0.25
+  (IPX). The Wilcoxon signed-rank
   tests, which compare paired per-instance times, are Holm-significant for all three pairs
   (dsimplex vs glop p = 0.034, dsimplex vs ipx p = 0.001, ipx vs glop p < 1e-4): the two
   simplex codes are faster than IPX on most instances, and IPX is faster on fewer, but by
@@ -125,6 +126,13 @@ reference objective; a "+" means both):
   29, and 19 miss only the reference. `highs-hipdlp` misses every criterion in some cases.
   This is consistent with tolerances applied to the scaled problem or measured in another
   norm. No bug claim is made.
+- **Most "reference only" failures are near the threshold.** The gap test divides by
+  1 + |P| + |D|, about twice the 1 + |P_ref| of the reference test, so a solution can pass
+  the gap at epsilon and still miss the reference test by a factor of about 2. Of the 64
+  claims that miss only the reference, 42 miss it by at most 2e-6 and 62 by at most 1e-5
+  (`units.csv`, columns `max_rel` and `ref_rel_error`). The two others are `trento1`
+  (next item) and one `highs-hipdlp` claim at 7e-5. Their count depends on this choice of
+  scale; the pass rule stays as preregistered.
 - **The relative KKT check alone can accept a wrong answer.** Its primal scale is one
   infinity norm over all bounds, so one big-M value loosens the test for every row. On
   MIPLIB `trento1` (one right-hand side of 1e10, the others at most 1608), `ortools-pdlp`

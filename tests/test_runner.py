@@ -351,6 +351,15 @@ def test_wrapper_scrubs_local_paths() -> None:
     assert "<repo>" in out and "<home>" in out
 
 
+def test_wrapper_does_not_retry_a_bad_config(tmp_path: Path) -> None:
+    script = ROOT / "scripts" / "run_study.py"
+    cmd = [sys.executable, str(script), "--config", "no-such-config", "--out", str(tmp_path)]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 2
+    assert (tmp_path / "wrapper.log").read_text(encoding="utf-8").count("attempt 1/3") == 1
+    assert "attempt 2/3" not in proc.stdout
+
+
 def test_cli_status(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     from lpbench import cli
 

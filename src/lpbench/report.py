@@ -8,6 +8,7 @@ byte-identically from the same run directory.
 from __future__ import annotations
 
 import csv
+import datetime as dt
 import io
 import itertools
 import json
@@ -89,6 +90,17 @@ def completeness(run: RunData) -> dict[str, Any]:
         and len(run.records) >= int(expected)
         and len(insts) * len(cfgs) == len(pairs),
     }
+
+
+def elapsed_s(run: RunData) -> float | None:
+    """Wall time from the first start in the manifest to the last finished unit."""
+    hist = run.manifest.get("history") or []
+    ends = [r["finished_at"] for r in run.records if r.get("finished_at")]
+    if not ends or not hist or not hist[0].get("started"):
+        return None
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    start = dt.datetime.strptime(hist[0]["started"], fmt)
+    return (dt.datetime.strptime(max(ends), fmt) - start).total_seconds()
 
 
 def _rng(seed: int, *salt: int) -> np.random.Generator:
@@ -283,6 +295,7 @@ def pairwise(
         med, p = S.wilcoxon_pair(T[:, a], T[:, b], shift)
         iv = S.ratio_interval(T, a, b, shift, B, _rng(seed, salt, k))
         ivb = S.ratio_interval(T, a, b, shift, B, _rng(seed, salt, k), level=1 - 0.05 / max(m, 1))
+        ivc = S.ratio_interval(T, a, b, shift, B, _rng(seed, salt, k), method="bca")
         pvals.append(p)
         res.append(
             {
@@ -293,6 +306,8 @@ def pairwise(
                 "hi": iv.hi,
                 "lo_bonf": ivb.lo,
                 "hi_bonf": ivb.hi,
+                "lo_bca": ivc.lo,
+                "hi_bca": ivc.hi,
                 "median_log_diff": med,
                 "p": p,
             }
@@ -387,6 +402,8 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
         "shift_s": shift,
         "solve_cpu_total_s": total_cpu,
         "unit_wall_total_s": total_wall_units,
+        "elapsed_s": elapsed_s(run),
+        "starts": len(run.manifest.get("history") or []),
         "versions": prov.get("distributions"),
         "solver_libraries": prov.get("solver_libraries"),
         "platform": prov.get("platform"),
@@ -633,11 +650,14 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
                 allk[(r["instance"], r["config"], 0)] = r
         ks_all = sorted({k for (_, _, k) in allk})
         var = {}
-        T3 = np.zeros((len(perm_insts), len(configs), len(ks_all)))
+        T3 = np.full((len(perm_insts), len(configs), len(ks_all)), TL)  # missing unit: failure
         for j, c in enumerate(configs):
             gsd_t, gsd_it, gsd_it_long, rr, flips, n_pairs = [], [], [], [], 0, 0
             for i, inst in enumerate(perm_insts):
                 rs = [allk.get((inst, c, k)) for k in ks_all]
+                for kk, r in enumerate(rs):
+                    if r is not None and solved_verified(ek)(r) and not over_limit(r, TL):
+                        T3[i, j, kk] = min(time_of(r), TL)
                 if any(r is None for r in rs):
                     continue
                 okk = [
@@ -645,8 +665,6 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
                     for r in rs
                 ]
                 tt = [time_of(r) for r in rs]  # type: ignore[arg-type]
-                for kk, (o, t) in enumerate(zip(okk, tt, strict=True)):
-                    T3[i, j, kk] = min(t, TL) if o else TL
                 if len(set(okk)) > 1:
                     flips += 1
                 n_pairs += 1
@@ -806,6 +824,11 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
         f"- Solver CPU time, all units: {m['solve_cpu_total_s'] / 60:.1f} min; summed unit wall "
         f"time: {m['unit_wall_total_s'] / 60:.1f} min.\n"
     )
+    if m.get("elapsed_s") is not None:
+        w(
+            f"- Elapsed, first start to last unit: {m['elapsed_s'] / 60:.1f} min "
+            f"({m['starts']} start{'s' if m['starts'] != 1 else ''}).\n"
+        )
     woc = m["wall_over_cpu"]
     if woc["units"]:
         w(
@@ -819,8 +842,9 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
         )
     if m.get("platform"):
         p = m["platform"]
+        cpu = f"{p['processor']}, " if p.get("processor") else ""
         w(
-            f"- Machine: {p.get('system')} {p.get('release')}, {p.get('machine')}, "
+            f"- Machine: {p.get('system')} {p.get('release')}, {p.get('machine')}, {cpu}"
             f"{p.get('logical_cpus')} logical CPUs, Python {p.get('python')}; shared with other "
             "jobs during the run.\n"
         )
@@ -1002,9 +1026,9 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
 
     w("## Pairwise comparisons (all instances)\n\n")
     w(
-        "Ratio = SGM_a / SGM_b with 95% percentile interval and Bonferroni-adjusted interval "
-        "(21 pairs); p from the Wilcoxon signed-rank test on log(t + shift), Holm-adjusted "
-        "over the 21 pairs of this family.\n\n"
+        "Ratio = SGM_a / SGM_b with 95% percentile interval, Bonferroni-adjusted interval "
+        "(21 pairs) and 95% BCa interval as a sensitivity; p from the Wilcoxon signed-rank test "
+        "on log(t + shift), Holm-adjusted over the 21 pairs of this family.\n\n"
     )
     rows = [
         [
@@ -1013,12 +1037,14 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
             f3(r["ratio"]),
             f"[{f3(r['lo'])}, {f3(r['hi'])}]",
             f"[{f3(r['lo_bonf'])}, {f3(r['hi_bonf'])}]",
+            f"[{f3(r['lo_bca'])}, {f3(r['hi_bca'])}]",
             pval(r["p"]),
             pval(r["p_holm"]),
         ]
         for r in t["pairwise"]["all"]
     ]
-    w(md_table(["a", "b", "ratio", "95% CI", "Bonferroni CI", "p", "p (Holm)"], rows) + "\n\n")
+    hdr = ["a", "b", "ratio", "95% CI", "Bonferroni CI", "BCa CI", "p", "p (Holm)"]
+    w(md_table(hdr, rows) + "\n\n")
     for s in scopes:
         if s == "all":
             continue

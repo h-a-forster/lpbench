@@ -21,7 +21,7 @@
    published results until they are re-run).
 2. Run `uv run python docs/repros/highs_pdlp_time_limit.py`: every run with a finite limit
    should end `Optimal` with 4960 iterations, as with no limit.
-3. `tests/test_adapters.py::test_upstream_highs_pdlp_time_limit_stops_early` (slow) then
+3. `tests/test_adapters.py::test_upstream_highs_pdlp_time_limit_stops_early` (slow, Windows) then
    fails. Remove it and the external time limit for `highs-pdlp` (DESIGN 12, item 14), and
    record the change in DESIGN section 12.
 

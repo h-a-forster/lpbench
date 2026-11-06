@@ -45,6 +45,16 @@ None of these changes a published number; the quick report regenerates byte-iden
   optimality slightly more often than the HiGHS PDLP solvers, not less) and the description
   of `trento1`; explained the "numerical" column.
 
+A second pass the same day added numbers to the tables and changed none:
+
+- The pairwise table has a BCa interval as well; `summary.md` gives the elapsed time and the
+  CPU model.
+- An incomplete run scores a missing permutation unit as a failure at the time limit in the
+  two-level bootstrap, not as a time of 0.
+- A bad config ends with a message and exit 2 instead of a traceback, and
+  `scripts/run_study.py` does not retry it.
+- `REPORT.md` explains why most "reference only" failures sit just above the threshold.
+
 ## Limits
 
 One machine, small instances and a short limit; nothing here describes first-order methods

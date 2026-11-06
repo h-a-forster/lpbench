@@ -54,6 +54,13 @@ def test_cli_version_flag() -> None:
     assert exc.value.code == 0
 
 
+def test_cli_reports_a_bad_config_without_a_traceback(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert cli.main(["plan", "--config", "no-such-config"]) == 2
+    assert "config not found" in capsys.readouterr().err
+
+
 def test_provenance_has_no_local_paths() -> None:
     text = json.dumps(provenance())
     home = str(Path.home())

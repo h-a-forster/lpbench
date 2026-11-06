@@ -83,7 +83,7 @@ and the run directories live next to the code.
 uv run lpbench fetch --config quick      # Netlib + MIPLIB from netlib.org / miplib.zib.de, checksummed
 uv run lpbench prepare --config quick    # canonical LPs and MPS files in cache/
 uv run lpbench reference --config quick  # optional: recompute the MIPLIB consensus values
-uv run python scripts/run_study.py --config pilot --out runs/pilot   # ~1 min, for the projection
+uv run python scripts/run_study.py --config pilot --out runs/pilot   # ~2 min, for the projection
 uv run lpbench plan --config quick --pilot runs/pilot                # unit counts, projected wall time
 uv run python scripts/run_study.py --config quick --out runs/quick --pilot runs/pilot   # resumable
 uv run lpbench status runs/quick

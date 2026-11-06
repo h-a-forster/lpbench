@@ -17,6 +17,7 @@
 ## Proposed
 
 - A decision, before the full study, on preregistering a componentwise primal pass rule (DESIGN 12, item 18): 29-58 verified first-order solves per config fail it at 1e-6.
+- A decision, before the full study, on the reference test's scale: 1 + |P_ref| is about half the gap test's, and 42 of the 64 reference-only failures miss by at most 2e-6.
 - The full study (`configs/full.toml`) is run in chunks of under 45 min each, which also gives time-variability results on more than the 3-5 instances above 0.5 s per config.
 - `lpbench report` analyses every block of the full config: `eps1e-8` enters no table today, and the `eps1e-4` tolerance table and analysis (c) assume Netlib only.
 - The reference pass stops on CPU time or a longer limit, so that reference values no longer depend on machine load (a 60 s wall limit).

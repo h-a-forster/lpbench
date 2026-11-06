@@ -237,6 +237,28 @@ def test_late_permutation_is_a_status_flip(tmp_path: Path) -> None:
     assert var["scip-soplex"]["status_flips"] == 1 and var["highs-dsimplex"]["status_flips"] == 0
 
 
+def test_missing_permutation_unit_counts_as_a_failure(tmp_path: Path) -> None:
+    run = make_run(tmp_path)
+    full = R.build(R.load_run(run), B=50)["tables"]["two_level"]["scip-soplex"]
+    rec = R.load_run(run).select(block="perm", config="scip-soplex")[0]
+    (run / "units" / f"{rec['unit_id']}.json").unlink()
+    part = R.build(R.load_run(run), B=50)["tables"]["two_level"]["scip-soplex"]
+    assert part["one_level"][0] == full["one_level"][0]  # k = 0 is untouched
+    assert part["two_level"][0] > full["two_level"][0]
+
+
+def test_elapsed_time_spans_the_starts(tmp_path: Path) -> None:
+    run = make_run(tmp_path)
+    data = R.load_run(run)
+    assert R.elapsed_s(data) is None
+    rec = data.records[0]
+    _write(run, rec | {"finished_at": "2026-10-24T01:22:13Z"})
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    manifest["history"][0]["started"] = "2026-10-24T01:00:50Z"
+    (run / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    assert R.elapsed_s(R.load_run(run)) == 1283.0
+
+
 def test_options_come_from_the_records(tmp_path: Path) -> None:
     run = make_run(tmp_path)
     rec = R.load_run(run).select(block="main", config="highs-pdlp")[0]

@@ -77,8 +77,9 @@ def main() -> int:
         log(f"attempt {attempt} exited with {rc} after {time.perf_counter() - t0:.0f} s")
         for line in tail:
             log(f"  stderr: {line}")
-        # done, refused by the wall budget, config errors, or inputs missing: no retry
-        if rc in (0, 3, 4, 5):
+        # done, bad arguments or config, refused by the wall budget, option errors, or inputs
+        # missing: no retry
+        if rc in (0, 2, 3, 4, 5):
             break
         time.sleep(5)
     return rc

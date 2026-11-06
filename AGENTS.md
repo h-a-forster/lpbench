@@ -64,7 +64,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 | `configs/pilot.toml`, `configs/quick.toml`, `configs/full.toml` | study configs | done (full not run) |
 | `tests/test_solver_env.py` | pinned wheels solve a tiny LP; dual sign convention | done |
 | `tests/test_scaffold.py` | metadata, CLI, provenance hygiene | done |
-| `docs/DESIGN.md` | spec | done (v0.0.1) |
+| `docs/DESIGN.md` | spec | done |
 
 ## How to test
 
@@ -176,3 +176,6 @@ means some units could not be prepared (no record written; fetch/prepare, then r
   CLI count checks, stricter config validation, report guards, `perm` block in the full
   config, parser cross-check over all 206 instances, HiGHS "Unknown" repro (DESIGN 12,
   item 24). No published number changed.
+- **Done (second audit, 2026-11-06):** BCa column, elapsed time and CPU model in the report,
+  failure scoring of missing permutation units, clean exit on a bad config (DESIGN 12,
+  item 25). The earlier numbers in `docs/results/quick/` did not change.

@@ -40,7 +40,7 @@ time_limit= 1000.0: Optimal              wall   0.194 s  pdlp iterations 4960
 - The only option that changes between runs is `time_limit`. The lpbench adapter showed the
   same thing on Netlib AGG2 read from MPS: "Time limit reached" after 0.02 s with
   `time_limit = 10`, "Optimal" after 0.08 s without it.
-- `tests/test_adapters.py::test_upstream_highs_pdlp_time_limit_stops_early` (slow) keeps
+- `tests/test_adapters.py::test_upstream_highs_pdlp_time_limit_stops_early` (slow, Windows) keeps
   checking the behaviour. It will fail once the behaviour changes, which is the cue to
   remove the workaround.
 

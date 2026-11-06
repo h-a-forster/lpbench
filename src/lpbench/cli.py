@@ -8,6 +8,7 @@ import sys
 from collections.abc import Sequence
 
 from lpbench import __version__
+from lpbench.config import ConfigError
 from lpbench.versions import provenance
 
 
@@ -284,7 +285,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.command is None:
         parser.print_help()
         return 0
-    return int(args.func(args))
+    try:
+        return int(args.func(args))
+    except ConfigError as exc:
+        print(f"lpbench: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":  # pragma: no cover

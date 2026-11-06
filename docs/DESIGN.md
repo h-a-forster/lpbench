@@ -216,8 +216,8 @@ provenance (versions, git SHA, config hash, platform, worker pid).
   `TL * 1.5 + 10 s` enforced by the parent. A worker past its deadline is terminated and
   respawned; the unit is recorded as `KILLED`. A worker that dies (segfault, OOM) yields
   `ERROR` with the exit code. Neither stops the run.
-- Scheduling: units are ordered by descending expected cost (instance nnz times a per-config
-  factor from the pilot) so that long units start first.
+- Scheduling: units are ordered by descending expected cost (instance nnz, times
+  `runner.FIRST_ORDER_COST` for first-order configs) so that long units start first.
 - Memory: the nnz caps keep each process well under 1 GB; the worker records peak RSS when the
   platform exposes it cheaply (`resource` on POSIX; skipped on Windows).
 - Checkpointing: each finished unit is written to `runs/<study>/units/<unit_id>.json` via a
@@ -492,7 +492,7 @@ at k = 0 in the pilot. Recorded in the config, not chosen after seeing results.
 - State what was run: instance counts per suite after every exclusion, configs and options
   verbatim, epsilon, TL, K, seeds, library versions, machine (CPU model, cores, RAM, OS),
   worker count, total wall and CPU time, git SHA, config hash, and that the machine was
-  shared with other jobs.
+  shared with other jobs. RAM is not recorded (section 12, item 25).
 - Intervals with every point estimate; Holm-adjusted p-values for pairwise claims; the
   number of comparisons.
 - Claimed-but-unverified results are described as a tolerance-definition outcome unless the
@@ -661,7 +661,7 @@ Recorded as they were made during implementation.
     size tertile) means of a 20-instance pilot, and those means underweight the largest
     instances in each tertile (first 64 units: 652 s measured, 75 s predicted). The run
     still met the 45 min budget. A better predictor (nearest neighbours in nnz, arithmetic
-    means) is listed as future work in AGENTS.md.
+    means) was measured later and rejected (item 23).
 17. **(review) SCIP singleton-row duals.** The first quick run's adapter took
     `getDualsolLinear` only for rows with two or more entries and rebuilt every singleton
     row's dual from the variable's reduced cost. SCIP can also keep a singleton row as an LP
@@ -746,3 +746,15 @@ Recorded as they were made during implementation.
     ignored. Config hashes are unchanged. (h) `configs/full.toml` keeps its permutations in
     a `perm` block, where the report reads them; in `main` they were recorded and never
     analysed.
+25. **(audit, 2026-11-06, second pass) Report additions.** The tables gained numbers and
+    lost none; every earlier number regenerates unchanged. (a) The pairwise table has the
+    BCa interval that section 7 promised; `stats.py` had it, the report did not use it. The
+    SGM-ratio intervals of the top three still cover 1. (b) `summary.md` gives the elapsed
+    time (first start to last unit) and the CPU model, as section 9 asks. RAM is not
+    recorded: the standard library has no portable way to read it. (c) In an incomplete run,
+    a missing permutation unit was a time of 0 in the two-level bootstrap, against the
+    report's own statement that missing units count as failures, and it zeroed the other
+    permutations of that pair. It now counts as a failure at the time limit, alone. (d) A
+    bad config ends with a message and exit 2 instead of a traceback, and the wrapper does
+    not retry it. (e) The upstream PDLP time-limit test runs on Windows only: the cause is
+    Windows-only, so it would fail on Linux with `--runslow`.

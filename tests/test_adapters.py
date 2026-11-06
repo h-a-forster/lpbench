@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import time
 from pathlib import Path
 
@@ -332,6 +333,7 @@ def test_highs_pdlp_finishing_after_the_limit_is_time_limit() -> None:
 
 
 @pytest.mark.slow
+@pytest.mark.skipif(sys.platform != "win32", reason="the upstream cause is Windows-only")
 def test_upstream_highs_pdlp_time_limit_stops_early() -> None:
     """Upstream behaviour behind EXTERNAL_TIME_LIMIT (docs/repros/highs-pdlp-time-limit.md):
     with time_limit = 10 s, raw HiGHS PDLP reports "Time limit reached" well under 10 s. If
