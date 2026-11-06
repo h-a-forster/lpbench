@@ -247,6 +247,18 @@ def test_missing_permutation_unit_counts_as_a_failure(tmp_path: Path) -> None:
     assert part["two_level"][0] > full["two_level"][0]
 
 
+def test_old_records_are_scored_at_a_tolerance_they_have_no_verdict_for(tmp_path: Path) -> None:
+    run = make_run(tmp_path)
+    recs = R.load_run(run).select(block="main", config="scip-soplex")
+    _write(run, recs[0] | {"max_rel": 2e-6})  # within 1e-5
+    _write(run, recs[1] | {"max_rel": 2e-5})  # KKT residual misses 1e-5
+    _write(run, recs[2] | {"max_rel": 2e-6, "ref_rel_error": 2e-5})  # reference misses 1e-5
+    data = R.load_run(run)
+    v = R.build(data, B=20)["tables"]["verification"]["scip-soplex"]
+    assert all("1e-05" not in r["verified_at"] for r in data.records)
+    assert v["fail_1e-05"] == 2
+
+
 def test_elapsed_time_spans_the_starts(tmp_path: Path) -> None:
     run = make_run(tmp_path)
     data = R.load_run(run)

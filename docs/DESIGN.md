@@ -758,3 +758,12 @@ Recorded as they were made during implementation.
     bad config ends with a message and exit 2 instead of a traceback, and the wrapper does
     not retry it. (e) The upstream PDLP time-limit test runs on Windows only: the cause is
     Windows-only, so it would fail on Linux with `--runslow`.
+26. **(review, 2026-11-06) Tolerance headroom.** The first-order configs run at epsilon and
+    are checked at epsilon (section 4.3), which gives them no headroom, while dual simplex,
+    IPX and GLOP keep defaults 10-100x tighter; "half of PDLP's optimal answers fail" read as
+    a comparison between them. `REPORT_EPS` and `verify_eps` gained 1e-5. Records from the
+    published run have no 1e-5 verdict, so `report.verified_at` applies the worker's rule to
+    the stored `max_rel` and `ref_rel_error`; that rule matches all 6609 stored verdicts at
+    the other tolerances. No rerun was needed and the published run keeps its config hash,
+    but the hashes of `configs/*.toml` change, so a run directory from before this change
+    does not resume.

@@ -49,9 +49,12 @@ claims about GPU solvers, multi-threaded performance or commercial solvers.
 - The three fastest configs cannot be ordered with confidence. Their pairwise SGM-ratio
   intervals all cover 1, and their order changes with the suite, the shift, the failure
   penalty and between runs.
-- At a requested tolerance of 1e-6, about half the "optimal" answers of the HiGHS PDLP
-  solvers and 29% of those from OR-Tools PDLP fail lpbench's 1e-6 check. Nearly all pass
-  at 1e-4. One OR-Tools PDLP "optimal" answer (x = 0 on `trento1`) passes the relative
+- Checked at exactly the tolerance they were asked for, 1e-6, about half the "optimal"
+  answers of the HiGHS PDLP solvers and 29% of those from OR-Tools PDLP fail lpbench's
+  check. That is the no-headroom case: the first-order configs stop at the requested
+  tolerance, while simplex and IPM mostly keep defaults 10-100x tighter. One decade looser,
+  at 1e-5, 11% and 13% (HiGHS PDLP) and 6% (OR-Tools PDLP) fail; nearly all pass at 1e-4.
+  One OR-Tools PDLP "optimal" answer (x = 0 on `trento1`) passes the relative
   residual check and is caught only by the reference objective.
 - With a finite `time_limit`, HiGHS PDLP in the highspy 1.15.1 wheel stopped after a tiny
   fraction of the limit on Windows (standalone reproduction:

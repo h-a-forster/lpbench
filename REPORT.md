@@ -98,15 +98,15 @@ Each solver stops on its own tolerance definition: absolute or relative, scaled 
 unscaled, L2 or L-infinity norm. lpbench checks every claim against one common definition
 on the original data.
 
-| config | claimed optimal | fail at 1e-4 | fail at 1e-6 | fail at 1e-8 |
-|---|---|---|---|---|
-| highs-dsimplex | 200 | 0 | 0 | 0 |
-| highs-ipx | 206 | 0 | 0 | 2 |
-| ortools-glop | 205 | 0 | 0 | 0 |
-| scip-soplex | 198 | 0 | 0 | 1 |
-| ortools-pdlp | 170 | 5 | 49 | 144 |
-| highs-pdlp | 164 | 1 | 81 | 141 |
-| highs-hipdlp | 164 | 3 | 91 | 153 |
+| config | claimed optimal | fail at 1e-4 | fail at 1e-5 | fail at 1e-6 | fail at 1e-8 |
+|---|---|---|---|---|---|
+| highs-dsimplex | 200 | 0 | 0 | 0 | 0 |
+| highs-ipx | 206 | 0 | 0 | 0 | 2 |
+| ortools-glop | 205 | 0 | 0 | 0 | 0 |
+| scip-soplex | 198 | 0 | 0 | 0 | 1 |
+| ortools-pdlp | 170 | 5 | 11 | 49 | 144 |
+| highs-pdlp | 164 | 1 | 18 | 81 | 141 |
+| highs-hipdlp | 164 | 3 | 21 | 91 | 153 |
 
 Which criteria the failures at 1e-6 miss (P primal residual, D dual residual, G gap, ref
 reference objective; a "+" means both):
@@ -117,9 +117,18 @@ reference objective; a "+" means both):
 | highs-hipdlp | 17 | 15 | 14 | 18 | 2 | 5 | 5 | 8 | 5 | 2 |
 | ortools-pdlp | 0 | 0 | 15 | 27 | 0 | 0 | 0 | 7 | 0 | 0 |
 
-- With epsilon set to 1e-6, the HiGHS PDLP solvers' "optimal" solutions fail lpbench's
-  1e-6 check about half the time (81 and 91 of 164), and the `ortools-pdlp` ones 29% of
-  the time (49 of 170). Nearly all pass at 1e-4. The failures differ by solver. For
+- **The 1e-6 column gives the first-order configs no headroom.** They run with their
+  tolerance set to epsilon (DESIGN 4.3) and are checked at that same epsilon under another
+  definition, so a solution that just meets its own test can sit on either side of ours.
+  `highs-dsimplex`, `highs-ipx` and `ortools-glop` keep defaults 10-100x tighter than 1e-6;
+  `scip-soplex` keeps a primal tolerance of 1e-6 and a dual one of 1e-7. Under that design
+  the HiGHS PDLP solvers' "optimal" solutions fail lpbench's 1e-6 check about half the time
+  (81 and 91 of 164), and the `ortools-pdlp` ones 29% of the time (49 of 170). With the 10x
+  headroom that dual simplex has, the check at 1e-5, the rates are 11%, 13% and 6% (18, 21
+  and 11), and nearly all pass at 1e-4. The 1e-5 column checks the same solutions more
+  loosely; it is not a run at a tighter tolerance. It was added after the run (DESIGN 12,
+  item 26).
+- The failures at 1e-6 differ by solver. For
   `ortools-pdlp`, 27 of 49 pass the KKT check and miss only the reference objective, and
   the rest miss the gap; its primal and dual residuals never fail. For `highs-pdlp`, the
   gap never fails; the primal residual is involved in 44 failures, the dual residual in

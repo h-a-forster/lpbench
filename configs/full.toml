@@ -13,7 +13,7 @@ configs = [
     "ortools-glop", "ortools-pdlp", "scip-soplex",
 ]
 first_order = ["highs-pdlp", "highs-hipdlp", "ortools-pdlp"]
-verify_eps = [1e-4, 1e-6, 1e-8]
+verify_eps = [1e-4, 1e-5, 1e-6, 1e-8]
 
 [suites.netlib]
 exclude = ["qap8", "qap12", "qap15", "stocfor3", "truss", "standgub"]

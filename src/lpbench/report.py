@@ -119,6 +119,20 @@ def solved_verified(eps_key: str) -> Any:
     return f
 
 
+def verified_at(r: dict[str, Any], eps: float) -> bool:
+    """The worker's verdict at eps, or the same rule on the stored errors if it has none.
+
+    Records written before eps joined REPORT_EPS hold no verdict for it (DESIGN 12, item 26).
+    """
+    stored = r.get("verified_at", {}).get(eps_key(eps))
+    if stored is not None:
+        return bool(stored)
+    max_rel, ref_err = r.get("max_rel"), r.get("ref_rel_error")
+    if not (r.get("verification") or {}).get("has_dual") or max_rel is None or max_rel > eps:
+        return False
+    return r.get("reference") is None or (ref_err is not None and ref_err <= eps)
+
+
 def solved_trust(r: dict[str, Any]) -> bool:
     return r.get("status") == "OPTIMAL"
 
@@ -435,6 +449,7 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
         for e in ("1e-04", "1e-06", "1e-08"):
             d[f"fail_{e}"] = sum(1 for r in opt if not r.get("verified_at", {}).get(e))
             d[f"floor_limited_{e}"] = sum(1 for r in opt if r.get("floor_limited_at", {}).get(e))
+        d["fail_1e-05"] = sum(1 for r in opt if not verified_at(r, 1e-5))
         d["kkt_pass_ref_fail"] = sum(
             1
             for r in opt
@@ -902,6 +917,7 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
                 c,
                 d["claimed_optimal"],
                 d["fail_1e-04"],
+                d["fail_1e-05"],
                 d["fail_1e-06"],
                 d["fail_1e-08"],
                 d["kkt_pass_ref_fail"],
@@ -915,6 +931,7 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
                 "config",
                 "claimed optimal",
                 "fail at 1e-4",
+                "fail at 1e-5",
                 "fail at 1e-6",
                 "fail at 1e-8",
                 "KKT ok, objective off",

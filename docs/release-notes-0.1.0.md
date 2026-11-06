@@ -55,6 +55,13 @@ A second pass the same day added numbers to the tables and changed none:
   `scripts/run_study.py` does not retry it.
 - `REPORT.md` explains why most "reference only" failures sit just above the threshold.
 
+A third pass corrected a headline; again no published number changed:
+
+- The verification table has a "fail at 1e-5" column, derived from the stored errors. The
+  README and `REPORT.md` no longer give "about half of PDLP's optimal answers fail" without
+  its context: that rate has no tolerance headroom, and one decade looser it is 11%, 13% and
+  6%.
+
 ## Limits
 
 One machine, small instances and a short limit; nothing here describes first-order methods

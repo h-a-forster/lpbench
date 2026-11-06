@@ -84,7 +84,7 @@ def test_runner_records_verified_units(cache: Path, tmp_path: Path) -> None:
     for r in recs.values():
         assert r["status"] == "OPTIMAL", r
         assert r["verified_solve"] is True and r["claimed_unverified"] is False
-        assert r["verified_at"]["1e-06"] is True
+        assert r["verified_at"]["1e-05"] is r["verified_at"]["1e-06"] is True
         assert abs(r["ref_rel_error"]) < 1e-9
         assert r["solve_wall_s"] >= 0 and r["unit_wall_s"] >= r["solve_wall_s"]
     # permutation correctness: same objective for k = 0 and k = 1

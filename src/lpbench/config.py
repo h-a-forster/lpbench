@@ -21,7 +21,7 @@ CONFIG_IDS = (
 )
 SUITES = ("netlib", "miplib")
 #: Tolerances at which every unit is classified (DESIGN 5.2).
-REPORT_EPS: tuple[float, ...] = (1e-4, 1e-6, 1e-8)
+REPORT_EPS: tuple[float, ...] = (1e-4, 1e-5, 1e-6, 1e-8)
 MAX_WORKERS = 3
 MAX_DOWNLOAD_BYTES = 2_000_000_000
 
@@ -223,7 +223,7 @@ def parse_config(raw: dict[str, Any]) -> StudyConfig:
             seed=int(raw["seed"]),
             configs=configs,
             first_order=first_order,
-            verify_eps=tuple(float(e) for e in raw.get("verify_eps", [1e-4, 1e-6, 1e-8])),
+            verify_eps=tuple(float(e) for e in raw.get("verify_eps", REPORT_EPS)),
             netlib_exclude=tuple(s.upper() for s in netlib.get("exclude", [])),
             miplib_list=str(miplib.get("list", "benchmark-v2")),
             miplib_max_nnz=int(miplib.get("max_nnz", 100_000)),

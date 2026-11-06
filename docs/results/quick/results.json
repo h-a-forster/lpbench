@@ -3906,6 +3906,7 @@
     "claimed_optimal": 200,
     "examples": [],
     "fail_1e-04": 0,
+    "fail_1e-05": 0,
     "fail_1e-06": 0,
     "fail_1e-08": 0,
     "failed_criteria": {},
@@ -3974,6 +3975,7 @@
      }
     ],
     "fail_1e-04": 3,
+    "fail_1e-05": 21,
     "fail_1e-06": 91,
     "fail_1e-08": 153,
     "failed_criteria": {
@@ -4002,6 +4004,7 @@
     "claimed_optimal": 206,
     "examples": [],
     "fail_1e-04": 0,
+    "fail_1e-05": 0,
     "fail_1e-06": 0,
     "fail_1e-08": 2,
     "failed_criteria": {},
@@ -4070,6 +4073,7 @@
      }
     ],
     "fail_1e-04": 1,
+    "fail_1e-05": 18,
     "fail_1e-06": 81,
     "fail_1e-08": 141,
     "failed_criteria": {
@@ -4094,6 +4098,7 @@
     "claimed_optimal": 205,
     "examples": [],
     "fail_1e-04": 0,
+    "fail_1e-05": 0,
     "fail_1e-06": 0,
     "fail_1e-08": 0,
     "failed_criteria": {},
@@ -4162,6 +4167,7 @@
      }
     ],
     "fail_1e-04": 5,
+    "fail_1e-05": 11,
     "fail_1e-06": 49,
     "fail_1e-08": 144,
     "failed_criteria": {
@@ -4183,6 +4189,7 @@
     "claimed_optimal": 198,
     "examples": [],
     "fail_1e-04": 0,
+    "fail_1e-05": 0,
     "fail_1e-06": 0,
     "fail_1e-08": 1,
     "failed_criteria": {},
