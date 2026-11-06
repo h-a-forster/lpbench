@@ -9,12 +9,13 @@ from pathlib import Path
 import numpy as np
 import pytest
 import scipy.sparse as sp
+from solver_process import in_ortools_process
 
 from lpbench.config import CONFIG_IDS, load_config
 from lpbench.instances import all_instances
 from lpbench.lpmodel import INF, CanonicalLP, load_npz, make_lp, write_mps
 from lpbench.solvers.base import SolveRequest, SolverStatus
-from lpbench.solvers.registry import FIRST_ORDER, make_adapter, option_table
+from lpbench.solvers.registry import FIRST_ORDER, make_adapter, option_table, solver_family
 from lpbench.synthetic import KnownLP, all_types_lp, infeasible_lp, random_known_lp, unbounded_lp
 from lpbench.verify import objective_agrees, verify
 
@@ -22,11 +23,21 @@ ROOT = Path(__file__).resolve().parents[1]
 CACHE = ROOT / "cache"
 
 
+def _solve_here(req: SolveRequest):
+    return make_adapter(req.config).solve(req)
+
+
+def _solve_request(req: SolveRequest):
+    if solver_family(req.config) == "ortools":
+        return in_ortools_process(_solve_here, req)
+    return _solve_here(req)
+
+
 def _solve(config: str, lp: CanonicalLP, tmp_path: Path, eps: float = 1e-6, tl: float = 30.0):
     path = tmp_path / f"{lp.name}.mps"
     if not path.exists():
         write_mps(lp, path)
-    return make_adapter(config).solve(SolveRequest(config, path, eps, tl, seed=1))
+    return _solve_request(SolveRequest(config, path, eps, tl, seed=1))
 
 
 @pytest.mark.parametrize("config", CONFIG_IDS)
@@ -75,9 +86,14 @@ def test_infeasible_and_unbounded_status(config: str, tmp_path: Path) -> None:
     assert _solve(config, unbounded_lp(), tmp_path, tl=5).status in EXPECTED_UNBOUNDED[config]
 
 
+def _ortools_bad_field_status(config: str, req: SolveRequest) -> SolverStatus:
+    from lpbench.solvers.ortools import OrtoolsAdapter
+
+    return OrtoolsAdapter(config).solve(req, "no_such_field: 1").status
+
+
 def test_invalid_options_are_config_errors(tmp_path: Path) -> None:
     from lpbench.solvers.highs import HighsAdapter
-    from lpbench.solvers.ortools import OrtoolsAdapter
     from lpbench.solvers.scip import ScipAdapter
 
     k = all_types_lp()
@@ -92,7 +108,7 @@ def test_invalid_options_are_config_errors(tmp_path: Path) -> None:
         SolverStatus.ERROR,
     )
     for c in ("ortools-glop", "ortools-pdlp"):
-        assert OrtoolsAdapter(c).solve(req, "no_such_field: 1").status == SolverStatus.CONFIG_ERROR
+        assert in_ortools_process(_ortools_bad_field_status, c, req) == SolverStatus.CONFIG_ERROR
     assert ScipAdapter().solve(req, {"no/such/param": 1}).status == SolverStatus.CONFIG_ERROR
     assert ScipAdapter().solve(req, {"limits/time": "abc"}).status == SolverStatus.CONFIG_ERROR
 
@@ -145,6 +161,10 @@ def test_option_table_alignment() -> None:
 
 
 def _ortools_arrays(path: Path) -> tuple[np.ndarray, ...]:
+    return in_ortools_process(_ortools_arrays_here, path)
+
+
+def _ortools_arrays_here(path: Path) -> tuple[np.ndarray, ...]:
     from ortools.linear_solver.python import model_builder as mb
 
     m = mb.Model()
@@ -261,10 +281,9 @@ def test_ten_netlib_verified_by_simplex_and_ipm(config: str) -> None:
     from lpbench.instances import canonical_reference, netlib_instances
 
     insts = {i.name: i for i in netlib_instances()}
-    adapter = make_adapter(config)
     for name in NETLIB_TEN:
         lp, mps = _netlib_cached(name)
-        res = adapter.solve(SolveRequest(config, mps, 1e-6, 60.0, seed=1))
+        res = _solve_request(SolveRequest(config, mps, 1e-6, 60.0, seed=1))
         assert res.status == SolverStatus.OPTIMAL, (name, res.raw_status)
         v = verify(lp, res.x, res.y)
         assert v is not None and v.passes(1e-6), (name, v)
@@ -309,7 +328,7 @@ def test_time_limit_is_respected(config: str) -> None:
     lp, mps = _netlib_cached("DFL001")
     tl = 0.5
     t0 = time.perf_counter()
-    res = make_adapter(config).solve(SolveRequest(config, mps, 1e-8, tl, seed=1))
+    res = _solve_request(SolveRequest(config, mps, 1e-8, tl, seed=1))
     elapsed = time.perf_counter() - t0
     assert res.status == SolverStatus.TIME_LIMIT, res.raw_status
     assert res.solve_wall_s < tl * 1.5 + 10.0

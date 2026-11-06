@@ -28,6 +28,17 @@ def make_adapter(config: str) -> Adapter:
     raise ValueError(f"unknown config {config!r}")
 
 
+def solver_family(config: str) -> str:
+    """The solver library a config loads. Each family gets its own processes (DESIGN 4.2)."""
+    if config.startswith(("highs-", "test-")):  # test-ok solves with HiGHS
+        return "highs"
+    if config.startswith("ortools-"):
+        return "ortools"
+    if config == "scip-soplex":
+        return "scip"
+    raise ValueError(f"unknown config {config!r}")
+
+
 def option_table(eps: float, time_limit_s: float, seed: int) -> dict[str, dict[str, Any]]:
     """Exact options set for every study config at one epsilon (verbatim in the report)."""
     return {c: make_adapter(c).options(eps, time_limit_s, seed) for c in CONFIG_IDS}

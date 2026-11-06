@@ -16,6 +16,7 @@ import multiprocessing as mp
 import os
 import re
 import time
+from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from multiprocessing.connection import wait
@@ -25,6 +26,7 @@ from typing import Any
 from lpbench.config import StudyConfig
 from lpbench.instances import Instance, canonical_reference, stratified_subset, suite_instances
 from lpbench.solvers.base import EXTERNAL_TIME_LIMIT, EXTERNAL_TL_GRACE_S
+from lpbench.solvers.registry import solver_family
 from lpbench.worker import pin_threads
 
 FIRST_ORDER_COST = 25.0  # default relative cost of a first-order unit before a pilot exists
@@ -164,6 +166,7 @@ def load_records(run_dir: Path) -> dict[str, dict[str, Any]]:
 
 @dataclass
 class _Slot:
+    family: str
     proc: Any
     conn: Any
     task: dict[str, Any] | None = None
@@ -303,14 +306,14 @@ class Runner:
             ),
         )
 
-    def _spawn(self, ctx: Any) -> _Slot:
+    def _spawn(self, ctx: Any, family: str) -> _Slot:
         from lpbench.worker import worker_main
 
         parent, child = ctx.Pipe(duplex=True)
-        proc = ctx.Process(target=worker_main, args=(child,), daemon=True)
+        proc = ctx.Process(target=worker_main, args=(child, family), daemon=True)
         proc.start()
         child.close()
-        return _Slot(proc=proc, conn=parent)
+        return _Slot(family=family, proc=proc, conn=parent)
 
     @staticmethod
     def _await_ready(slot: _Slot, timeout_s: float = 300.0) -> None:
@@ -321,8 +324,8 @@ class Runner:
         if not (isinstance(msg, dict) and "ready" in msg):
             raise RuntimeError(f"unexpected worker greeting: {msg!r}")
 
-    def _spawn_ready(self, ctx: Any) -> _Slot:
-        slot = self._spawn(ctx)
+    def _spawn_ready(self, ctx: Any, family: str) -> _Slot:
+        slot = self._spawn(ctx, family)
         self._await_ready(slot)
         return slot
 
@@ -359,7 +362,13 @@ class Runner:
 
         pin_threads()  # inherited by spawned workers
         ctx = mp.get_context("spawn")
-        slots = [self._spawn(ctx) for _ in range(min(self.workers, len(todo)))]
+        # one pool per solver family (DESIGN 4.2); self.workers bounds the busy ones, not these
+        families = Counter(solver_family(u.config) for u in todo)
+        slots = [
+            self._spawn(ctx, family)
+            for family, n in sorted(families.items())
+            for _ in range(min(self.workers, n))
+        ]
         for s in slots:
             self._await_ready(s)
         queue = list(todo)
@@ -396,21 +405,24 @@ class Runner:
 
         try:
             while queue or any(s.task is not None for s in slots):
-                # hand out work
-                for s in slots:
-                    if s.task is None and queue:
-                        u = queue.pop(0)
-                        try:
-                            task = self._task(u)
-                        except Exception as exc:  # missing files etc.: not a unit result
-                            summary.not_run += 1
-                            self.log(
-                                f"{utc_now()} {u.unit_id} NOT RUN (prepare failed: "
-                                f"{type(exc).__name__}: {exc}); no record written"
-                            )
-                            continue
-                        s.task, s.started = task, time.perf_counter()
-                        s.conn.send(task)
+                # hand out work, in queue order, to an idle worker of the unit's family
+                n_busy = sum(s.task is not None for s in slots)
+                while queue and n_busy < self.workers:
+                    u = queue.pop(0)
+                    try:
+                        task = self._task(u)
+                    except Exception as exc:  # missing files etc.: not a unit result
+                        summary.not_run += 1
+                        self.log(
+                            f"{utc_now()} {u.unit_id} NOT RUN (prepare failed: "
+                            f"{type(exc).__name__}: {exc}); no record written"
+                        )
+                        continue
+                    family = solver_family(u.config)
+                    s = next(x for x in slots if x.task is None and x.family == family)
+                    s.task, s.started = task, time.perf_counter()
+                    s.conn.send(task)
+                    n_busy += 1
                 busy = [s for s in slots if s.task is not None]
                 if not busy:
                     continue
@@ -440,7 +452,7 @@ class Runner:
                                 "solve_wall_s": time.perf_counter() - s.started,
                             },
                         )
-                        slots[i] = self._spawn_ready(ctx)
+                        slots[i] = self._spawn_ready(ctx, s.family)
                         continue
                     limit = self._deadline(s)
                     if time.perf_counter() - s.started > limit:
@@ -458,7 +470,7 @@ class Runner:
                                 "solve_wall_s": time.perf_counter() - s.started,
                             },
                         )
-                        slots[i] = self._spawn_ready(ctx)
+                        slots[i] = self._spawn_ready(ctx, s.family)
         finally:
             for s in slots:
                 try:

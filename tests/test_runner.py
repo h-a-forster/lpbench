@@ -87,6 +87,12 @@ def test_runner_records_verified_units(cache: Path, tmp_path: Path) -> None:
         assert r["verified_at"]["1e-05"] is r["verified_at"]["1e-06"] is True
         assert abs(r["ref_rel_error"]) < 1e-9
         assert r["solve_wall_s"] >= 0 and r["unit_wall_s"] >= r["solve_wall_s"]
+    # no process loads two solver families (DESIGN 4.2)
+    pids = {
+        c: {r["worker_pid"] for r in recs.values() if r["config"] == c}
+        for c in ("highs-dsimplex", "scip-soplex", "ortools-glop")
+    }
+    assert len(set().union(*pids.values())) == sum(len(p) for p in pids.values())
     # permutation correctness: same objective for k = 0 and k = 1
     for i in insts:
         for c in ("highs-dsimplex", "scip-soplex"):

@@ -1,12 +1,13 @@
 """Persistent worker process: pin threads, solve one unit at a time, verify, report.
 
-A worker receives task dicts over a pipe and answers with record dicts (no vectors). It
-never writes unit records itself; the parent is the single writer, so a killed or crashed
-worker cannot leave a partial record behind.
+A worker loads one solver family only (DESIGN 4.2). It receives task dicts over a pipe and
+answers with record dicts (no vectors). It never writes unit records itself; the parent is
+the single writer, so a killed or crashed worker cannot leave a partial record behind.
 """
 
 from __future__ import annotations
 
+import importlib
 import math
 import os
 import sys
@@ -19,6 +20,18 @@ THREAD_ENV = {
     "MKL_NUM_THREADS": "1",
     "VECLIB_MAXIMUM_THREADS": "1",
     "NUMEXPR_NUM_THREADS": "1",
+}
+
+#: Imports of each solver family. No process may load two families: the OR-Tools wheel bundles
+#: its own HiGHS and SCIP, and on Linux libortools.so fails to load after highspy.
+FAMILY_MODULES = {
+    "highs": ("highspy", "lpbench.solvers.highs"),
+    "ortools": (
+        "ortools.linear_solver.pywraplp",
+        "ortools.linear_solver.python.model_builder",
+        "lpbench.solvers.ortools",
+    ),
+    "scip": ("pyscipopt", "lpbench.solvers.scip"),
 }
 
 
@@ -152,24 +165,17 @@ def execute(task: dict[str, Any]) -> dict[str, Any]:
     return rec
 
 
-def warm_up() -> None:
-    """Import the solver libraries once, so no unit's deadline pays for the imports."""
-    import highspy  # noqa: F401
-    import pyscipopt  # noqa: F401
-    from ortools.linear_solver import pywraplp  # noqa: F401
-    from ortools.linear_solver.python import model_builder  # noqa: F401
-
-    import lpbench.solvers.highs  # noqa: F401
-    import lpbench.solvers.ortools  # noqa: F401
-    import lpbench.solvers.scip  # noqa: F401
-    import lpbench.verify  # noqa: F401
+def warm_up(family: str) -> None:
+    """Import one solver family once, so no unit's deadline pays for the imports."""
+    for module in (*FAMILY_MODULES[family], "lpbench.verify"):
+        importlib.import_module(module)
 
 
-def worker_main(conn: Any) -> None:  # pragma: no cover - runs in a child process
+def worker_main(conn: Any, family: str) -> None:  # pragma: no cover - runs in a child process
     """Entry point of a persistent worker (spawn start method)."""
     pin_threads()
     try:
-        warm_up()
+        warm_up(family)
         conn.send({"ready": os.getpid()})
     except (EOFError, OSError, BrokenPipeError):
         return

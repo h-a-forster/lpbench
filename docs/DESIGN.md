@@ -206,8 +206,10 @@ provenance (versions, git SHA, config hash, platform, worker pid).
 
 ### 4.2 Execution model (`worker.py`, `runner.py`)
 
-- At most `workers = 3` persistent processes (spawn context; the same code path on Windows
-  and Linux). Before importing any solver the worker sets `OMP_NUM_THREADS`,
+- At most `workers = 3` units run at once, in persistent processes (spawn context; the same
+  code path on Windows and Linux). Each process loads one solver family (HiGHS, OR-Tools or
+  SCIP), so a run keeps up to `workers` processes per family, idle ones blocked on their pipe
+  (DESIGN 12, item 28). Before importing any solver the worker sets `OMP_NUM_THREADS`,
   `OPENBLAS_NUM_THREADS`, `MKL_NUM_THREADS` to 1. Every adapter sets its library's thread
   count to 1 (HiGHS `threads=1`, OR-Tools PDLP `num_threads: 1`, SCIP `lp/threads=1`).
   `solve_cpu_s > 1.2 * solve_wall_s` on any unit flags hidden threading.
@@ -774,3 +776,13 @@ Recorded as they were made during implementation.
     keeps the preregistered CPU-time test and adds the Holm-adjusted test on `solve_wall_s`
     for the all-instances family; `significant_pairs` still uses the CPU-time test. REPORT.md
     quotes the wall-time result for the top three. The SGM-ratio intervals are unchanged.
+28. **(CI, 2026-11-06) One solver family per process.** On Linux `libortools.so.9` fails with
+    an undefined HiGHS symbol (`setLocalOptionValue`) once highspy is loaded, so every worker
+    died in its warm-up and no study could run; Windows was unaffected. The OR-Tools wheel
+    bundles HiGHS 1.12.0 and SCIP, highspy 1.15.1 has its own HiGHS. Importing OR-Tools first
+    was rejected: it was not shown to work, and it could leave highspy running the other
+    HiGHS without an error. Workers now load one family, and the scheduler hands units out
+    in the same order under the same limit on running units, to an idle worker of the unit's
+    family. Solver options and versions are unchanged, so the published numbers stand; they
+    came from Windows workers that had all three families loaded, and `worker_peak_rss_kb`
+    (POSIX only, so absent from them) now counts one family.

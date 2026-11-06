@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from solver_process import in_ortools_process
 
 X_OPT = np.array([1.6, 1.2])
 Y_OPT = np.array([-0.4, -0.2])
@@ -94,6 +95,10 @@ def test_highs_rejects_unknown_solver_value(mps_path: Path) -> None:
     ],
 )
 def test_ortools(mps_path: Path, solver: str, params: str) -> None:
+    in_ortools_process(_solve_with_ortools, mps_path, solver, params)
+
+
+def _solve_with_ortools(mps_path: Path, solver: str, params: str) -> None:
     from ortools.linear_solver.python import model_builder as mb
 
     model = mb.Model()

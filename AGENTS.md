@@ -20,7 +20,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
   `.python-version`). Typed code, ruff (line length 100), pytest.
 - Solver distributions are pinned exactly in `pyproject.toml`; `uv.lock` is committed. A
   version bump is its own change and invalidates published results until re-run.
-- CPU only, at most 3 worker processes, one solver thread each. No LLM or model API calls.
+- CPU only, at most 3 running units, one solver thread each, one solver family per process. No LLM or model API calls.
 - Network access only in `lpbench fetch`, only to netlib.org and miplib.zib.de, with
   timeouts, a total download cap (2 GB) and recorded SHA-256 checksums.
 - Never commit `cache/`, `runs/`, `data/` (root), downloaded instances or prepared MPS.
@@ -77,7 +77,7 @@ uv run ruff format --check .
 ```
 
 On Windows the fast suite took 92 s on a quiet machine (2026-11-06) and timed out at 470 s
-on a loaded one (2026-10-30): each runner test spawns workers that import every solver.
+on a loaded one (2026-10-30): each runner test spawns one worker pool per solver family it uses.
 
 CI (`.github/workflows/ci.yml`) runs on `pull_request` and `workflow_dispatch` only:
 ubuntu py3.11, ubuntu py3.13, windows py3.13, plus a lint job.
