@@ -61,6 +61,8 @@ A third pass corrected a headline; again no published number changed:
   README and `REPORT.md` no longer give "about half of PDLP's optimal answers fail" without
   its context: that rate has no tolerance headroom, and one decade looser it is 11%, 13% and
   6%.
+- The pairwise table has a wall-time p-value. `REPORT.md` no longer reads the top three's
+  CPU-time Wilcoxon tests, which rest on a 15.6 ms timer step.
 
 ## Limits
 

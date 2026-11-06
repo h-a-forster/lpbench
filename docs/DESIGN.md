@@ -767,3 +767,10 @@ Recorded as they were made during implementation.
     the other tolerances. No rerun was needed and the published run keeps its config hash,
     but the hashes of `configs/*.toml` change, so a run directory from before this change
     does not resume.
+27. **(review, 2026-11-06) Timer step in the pairwise tests.** Of the verified solves in the
+    main block, 48 of 200 (`highs-dsimplex`), 56 of 205 (`ortools-glop`) and 24 of 206
+    (`highs-ipx`) have `solve_cpu_s` of exactly 0, and the three pairs tie on 43 to 72 of 206
+    instances, so their CPU-time Wilcoxon p-values compare clock ticks. The pairwise table
+    keeps the preregistered CPU-time test and adds the Holm-adjusted test on `solve_wall_s`
+    for the all-instances family; `significant_pairs` still uses the CPU-time test. REPORT.md
+    quotes the wall-time result for the top three. The SGM-ratio intervals are unchanged.

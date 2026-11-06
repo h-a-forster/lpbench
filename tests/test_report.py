@@ -247,6 +247,16 @@ def test_missing_permutation_unit_counts_as_a_failure(tmp_path: Path) -> None:
     assert part["two_level"][0] > full["two_level"][0]
 
 
+def test_wall_column_sees_differences_below_the_cpu_timer_step(tmp_path: Path) -> None:
+    run = make_run(tmp_path)
+    for cfg, wall in (("highs-dsimplex", 0.001), ("scip-soplex", 0.005)):
+        for r in R.load_run(run).select(block="main", config=cfg):
+            _write(run, r | {"solve_cpu_s": 0.0, "solve_wall_s": wall})
+    pairs = R.build(R.load_run(run), B=20)["tables"]["pairwise"]["all"]
+    pair = next(p for p in pairs if {p["a"], p["b"]} == {"highs-dsimplex", "scip-soplex"})
+    assert pair["p_holm"] == 1.0 and pair["p_holm_wall"] < 0.05
+
+
 def test_old_records_are_scored_at_a_tolerance_they_have_no_verdict_for(tmp_path: Path) -> None:
     run = make_run(tmp_path)
     recs = R.load_run(run).select(block="main", config="scip-soplex")

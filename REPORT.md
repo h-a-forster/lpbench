@@ -74,11 +74,14 @@ What the data support:
   covers 1: dsimplex/glop 1.01 [0.830, 1.19], dsimplex/ipx 0.975 [0.772, 1.20],
   ipx/glop 1.03 [0.865, 1.26] (the BCa intervals in the tables agree). In the bootstrap,
   each of the three is fastest with probability 0.39 (GLOP), 0.36 (dual simplex) and 0.25
-  (IPX). The Wilcoxon signed-rank
-  tests, which compare paired per-instance times, are Holm-significant for all three pairs
-  (dsimplex vs glop p = 0.034, dsimplex vs ipx p = 0.001, ipx vs glop p < 1e-4): the two
-  simplex codes are faster than IPX on most instances, and IPX is faster on fewer, but by
-  more. The first run ranked dual simplex first and GLOP second; this order is the part
+  (IPX). The CPU-time Wilcoxon tests in `summary.md` are not evidence here: CPU time moves
+  in 15.6 ms steps, 24 to 56 of these configs' 200-206 verified solves are recorded as
+  exactly 0 s, and 43 to 72 of the 206 paired comparisons tie. On wall time (`solve_wall_s`,
+  same test, Holm p < 1e-4 for all three pairs) GLOP is faster than dual simplex on 153 of
+  206 instances, dual simplex is faster than IPX on 166 and GLOP on 171. The median gaps are
+  0.003 to 0.015 in log(t + 1 s), a few milliseconds on these short solves, measured on a
+  shared machine, so this is a paired pattern on small instances, not a speed ranking. The
+  first run ranked dual simplex first and GLOP second; this order is the part
   most sensitive to analysis choices and to the run (below).
 - **`scip-soplex` is slower than the top three:** 1.6x the SGM of `highs-dsimplex`
   (ratio 0.624 [0.525, 0.729], Holm p < 1e-4). It ranks fourth in every bootstrap

@@ -299,7 +299,13 @@ def sgm_table(
 
 
 def pairwise(
-    T: np.ndarray, configs: list[str], shift: float, B: int, seed: int, salt: int
+    T: np.ndarray,
+    configs: list[str],
+    shift: float,
+    B: int,
+    seed: int,
+    salt: int,
+    T_wall: np.ndarray | None = None,
 ) -> list[dict[str, Any]]:
     pairs = list(itertools.combinations(range(len(configs)), 2))
     m = len(pairs)
@@ -328,6 +334,10 @@ def pairwise(
         )
     for r, ph in zip(res, S.holm(pvals), strict=True):
         r["p_holm"] = float(ph)
+    if T_wall is not None:  # CPU time moves in timer steps, wall time does not (DESIGN 12, item 27)
+        p_wall = [S.wilcoxon_pair(T_wall[:, a], T_wall[:, b], shift)[1] for a, b in pairs]
+        for r, ph in zip(res, S.holm(p_wall), strict=True):
+            r["p_holm_wall"] = float(ph)
     return res
 
 
@@ -516,7 +526,8 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
     primary_rank = ranking(T, configs, shift)
     primary_sgm = dict(zip(configs, np.atleast_1d(S.sgm(T, shift, axis=0)).tolist(), strict=True))
     res["tables"]["sgm"] = {"all": sgm_table(T, configs, shift, B, seed, 1)}
-    pw_all = pairwise(T, configs, shift, B, seed, 2)
+    Ti, _, _ = matrix(main, perf_insts, configs, solved_verified(ek), TL, time_key="solve_wall_s")
+    pw_all = pairwise(T, configs, shift, B, seed, 2, T_wall=Ti)
     res["tables"]["pairwise"] = {"all": pw_all}
     for si, s in enumerate(suites):
         sub = [i for i in perf_insts if inst_suite[i] == s]
@@ -624,7 +635,6 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
             if k == 0:
                 sub_sig = significant_pairs(pairwise(Th, configs, shift, B, seed, 30))
                 sub_base = ("subset, k=0", ranking(Th, configs, shift), sub_sig)
-    Ti, _, _ = matrix(main, perf_insts, configs, solved_verified(ek), TL, time_key="solve_wall_s")
     add("(i) wall time instead of CPU time", Ti)
     pool = sorted(perf_insts, key=lambda i: (inst_suite[i], inst_nnz[i], i))
     for t in range(3):
@@ -1045,7 +1055,9 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
     w(
         "Ratio = SGM_a / SGM_b with 95% percentile interval, Bonferroni-adjusted interval "
         "(21 pairs) and 95% BCa interval as a sensitivity; p from the Wilcoxon signed-rank test "
-        "on log(t + shift), Holm-adjusted over the 21 pairs of this family.\n\n"
+        "on log(t + shift), Holm-adjusted over the 21 pairs of this family. CPU time moves in "
+        "timer steps, so short solves tie or differ by a few steps; the last column is "
+        "the same Holm-adjusted test on solve wall time.\n\n"
     )
     rows = [
         [
@@ -1057,10 +1069,21 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
             f"[{f3(r['lo_bca'])}, {f3(r['hi_bca'])}]",
             pval(r["p"]),
             pval(r["p_holm"]),
+            pval(r["p_holm_wall"]),
         ]
         for r in t["pairwise"]["all"]
     ]
-    hdr = ["a", "b", "ratio", "95% CI", "Bonferroni CI", "BCa CI", "p", "p (Holm)"]
+    hdr = [
+        "a",
+        "b",
+        "ratio",
+        "95% CI",
+        "Bonferroni CI",
+        "BCa CI",
+        "p",
+        "p (Holm)",
+        "p (Holm, wall)",
+    ]
     w(md_table(hdr, rows) + "\n\n")
     for s in scopes:
         if s == "all":
