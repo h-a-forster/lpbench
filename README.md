@@ -124,7 +124,8 @@ and `performance_profiles.svg`.
 - **Instance pipeline.** An independent expander for Netlib's compressed format: all 92
   files expand with zero checksum errors, and the nonzero counts match Koch's and the Netlib
   readme. HiGHS dual simplex reproduces Koch's exact optimum to 1e-10 relative on all 92.
-  OR-Tools and SCIP read lpbench's MPS files exactly.
+  OR-Tools and SCIP read lpbench's MPS files as written on all 206 quick instances (SCIP
+  rounds one right-hand side of -2.8e-14 to 0).
 - **Adapters.** Every config solves the hand-built and generated LPs and passes the
   verifier. Infeasible and unbounded problems map to the right status, invalid options are
   reported as CONFIG_ERROR, and time limits are tested. Upstream behaviour that lpbench

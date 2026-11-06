@@ -1,7 +1,7 @@
 # HiGHS PDLP stops early when `time_limit` is finite
 
 **Status:** reproduced on one machine and one platform (Windows 11, x86-64, Python 3.13,
-highspy 1.15.1 wheel), last on 2026-10-30 with highspy 1.15.1, still the latest release.
+highspy 1.15.1 wheel), last on 2026-11-06 with highspy 1.15.1, still the latest release.
 It has not been checked on Linux or macOS. The cause is fixed upstream (HiGHS pull request
 #3450, merged 2026-10-22, not yet released); see
 [docs/upstream/highs-pdlp-time-limit.md](../upstream/highs-pdlp-time-limit.md). lpbench

@@ -4,9 +4,9 @@ title: lpbench
 abstract: >-
   An honest CPU benchmark of open-source LP solvers (HiGHS, OR-Tools GLOP and
   PDLP, SCIP/SoPlex) on Netlib and MIPLIB 2017 LP relaxations: every reported
-  optimum independently verified, performance variability measured across seeds
-  and permutations, and bootstrap intervals on shifted geometric means and
-  performance profiles.
+  optimum independently verified, performance variability measured across
+  permutations, and bootstrap intervals on shifted geometric means and performance
+  profiles.
 type: software
 authors:
   - name: lpbench contributors

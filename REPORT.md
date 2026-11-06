@@ -11,7 +11,8 @@ over instances (B = 10,000, seeded) unless stated otherwise. This is the sized-d
 This is the second run of the quick study. The first run (35.9 min) was discarded after a
 review found an lpbench bug in the SCIP adapter (below) and several reporting problems;
 DESIGN section 12, items 17-22, lists what changed. Every config was re-run so that all
-numbers come from one run of one code version.
+numbers come from one run of one code version. The first run's tables stay in git history
+(commit `60a9990`, `docs/results/quick/`); every first-run number below comes from there.
 
 ## Setup
 
@@ -45,6 +46,14 @@ claims fails verification at 1e-6. With a 10 s limit, the three first-order (PDL
 verify between 35% and 59% of instances. These counts depend on machine load: the
 in-library limits are wall-clock, and in the first run, on a busier machine, the PDLP
 configs verified 79, 73 and 113 (see Limitations).
+
+The "numerical" column is the solver's own failure status. For `highs-pdlp` and
+`highs-hipdlp` these are failed claims that HiGHS catches itself: PDLP reports optimal,
+HiGHS checks the result on the original LP, and it changes the status from "Optimal" to
+"Unknown" ([docs/repros/highs_pdlp_unknown.py](docs/repros/highs_pdlp_unknown.py) re-ran
+these 31 units and found the change in the log). The 81 and 91 claims in the previous
+column passed that check and still failed lpbench's. The one `ortools-glop` case is status
+ABNORMAL on `neos-3656078-kumeu`.
 
 ### Speed
 
@@ -118,10 +127,11 @@ reference objective; a "+" means both):
   norm. No bug claim is made.
 - **The relative KKT check alone can accept a wrong answer.** Its primal scale is one
   infinity norm over all bounds, so one big-M value loosens the test for every row. On
-  MIPLIB `trento1` (one right-hand side of 1e10, the others of order 1), `ortools-pdlp`
+  MIPLIB `trento1` (one right-hand side of 1e10, the others at most 1608), `ortools-pdlp`
   returned x = 0, y = 0 as OPTIMAL; this violates rows by 15 and has objective 0 against
   a reference of 5.18e6, yet passes the relative check even at 1e-8. Only the reference
-  objective rejects it. Two stricter primal measures are recorded as diagnostics. Scaled
+  objective rejects it (HiGHS's own check rejects the two HiGHS PDLP answers on this
+  instance, which end as "numerical"). Two stricter primal measures are recorded as diagnostics. Scaled
   by the constraint bounds only, as PDLP's own relative criterion is, 4 (`highs-pdlp`) and
   3 (`highs-hipdlp`) verified solves would fail at 1e-6. Scaled componentwise (each
   violation by its own bound), 29 (`highs-pdlp`), 36 (`highs-hipdlp`) and 58
@@ -147,7 +157,7 @@ subset. A "flip" is a baseline ordering that was Holm-significant and reverses.
 
 | change | tau | flips |
 |---|---|---|
-| trust solver status instead of verifying | 0.71 | `ortools-pdlp` drops from 5th to 7th: it claims optimality less often, but its claims are more often right |
+| trust solver status instead of verifying | 0.71 | `ortools-pdlp` drops from 5th to 7th: it claims optimality as often (170 against 164) but more slowly, and verification removes more of the HiGHS PDLP solvers' faster claims |
 | verify at 1e-4 | 0.81 | `ortools-pdlp` drops to 7th |
 | verify at 1e-8 | 1.00 | none |
 | requested epsilon 1e-4 (Netlib; against Netlib only) | 1.00 | none |
@@ -247,7 +257,9 @@ there only because it compared a Netlib-only ranking with the all-instance one.
   the reference pass was re-run for `scip-soplex`, which this time finished `dano3_3` and
   `dano3_5` (28 s; before, it was stopped at 59 s wall with 52 s of CPU), so these two now
   have a two-config consensus. That made them eligible for the stratified subset and
-  changed 7 of its 15 MIPLIB instances relative to the first run.
+  changed 7 of its 15 MIPLIB instances relative to the first run. The reference pass ran
+  on working trees with uncommitted changes (its records carry `5314ea4-dirty` and
+  `bc4259a-dirty`); the study itself ran on the clean commit `c1fc1a5`.
 - **Small subsets.** Permutation results rest on 30 instances (time variability on 3 to 5
   of them) and noise results on 10. Rank probabilities and intervals resample instances
   from this collection; they do not describe LPs in general.

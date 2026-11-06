@@ -55,7 +55,7 @@ maintainers.
 ## Pull requests
 
 - One change per pull request, with tests and docs.
-- Add an entry under "Unreleased" in [CHANGELOG.md](CHANGELOG.md) for user-visible changes.
-- Keep the "Status and next steps" section of [AGENTS.md](AGENTS.md) current.
+- Put notes on user-visible changes in `docs/release-notes-<version>.md`.
+- Keep [AGENTS.md](AGENTS.md) and the open work in [backlog.md](backlog.md) current.
 
 Security issues: see [SECURITY.md](SECURITY.md). Do not open a public issue.

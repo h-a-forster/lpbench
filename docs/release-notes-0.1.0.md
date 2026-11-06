@@ -27,6 +27,24 @@ per solve, 2388 solves in 21.4 min on one shared Windows machine.
   lpbench enforces that limit externally. The cause is fixed upstream (HiGHS #3450) but
   not yet released.
 
+## Fixes from the pre-release audit (2026-11-06)
+
+None of these changes a published number; the quick report regenerates byte-identically
+(DESIGN 12, item 24).
+
+- The verifier no longer lets an overflowing product pass as "no violation".
+- `lpbench reference` no longer blanks the committed MIPLIB values when instances are
+  missing; it exits 5 and writes nothing.
+- `--workers`, `--max-units` and `--bootstrap` must be at least 1 (`--workers -1` hung).
+- `lpbench report` refuses a run without main-block units with a clear message, warns about
+  blocks it does not analyse, and takes the option table from the unit records.
+- Config files are validated strictly: unknown keys and values no code acts on are errors.
+- `configs/full.toml` keeps its permutations in a `perm` block, which the report reads.
+- The parser cross-check covers all 206 quick instances.
+- `REPORT.md`: corrected the explanation of the trust-status ranking (`ortools-pdlp` claims
+  optimality slightly more often than the HiGHS PDLP solvers, not less) and the description
+  of `trento1`; explained the "numerical" column.
+
 ## Limits
 
 One machine, small instances and a short limit; nothing here describes first-order methods

@@ -1,6 +1,6 @@
 # Upstream: HiGHS PDLP stops early with a finite `time_limit`
 
-**Status (2026-10-30): fixed upstream, not yet released. No new report is needed.**
+**Status (2026-11-06): fixed upstream, not yet released. No new report is needed.**
 
 - Verified on Windows only (Windows 11, x86-64, Python 3.13, highspy 1.15.1 wheel). Not
   checked on Linux or macOS.

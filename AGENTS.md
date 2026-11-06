@@ -11,7 +11,7 @@ An honest CPU benchmark of open-source LP solvers installable from PyPI: HiGHS 1
 simplex, IPX, PDLP, HiPDLP), OR-Tools 9.15 (GLOP, PDLP) and SCIP 10 / SoPlex 8 via PySCIPOpt
 6.3.0, on Netlib and size-capped MIPLIB 2017 benchmark LP relaxations. The contribution is
 the methodology: independent verification of every reported optimum, performance
-variability across permutations and seeds, bootstrap intervals on shifted geometric means
+variability across permutations, bootstrap intervals on shifted geometric means
 and performance profiles, and an analysis of what changes the ranking. No GPU claims.
 
 ## Conventions
@@ -35,8 +35,9 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
   seeds, versions, machine, wall time); intervals with point estimates; Holm within the
   families of DESIGN section 7. "Claimed optimal but failed verification" is a tolerance
   outcome unless the bug-claim protocol (DESIGN 6.4 item 5) is complete.
-- Commits: end messages with the project's co-author trailer. Never push, create remotes or
-  publish without the owner's go-ahead.
+- Never push, create remotes or publish without the owner's go-ahead.
+- Open work lives in [backlog.md](backlog.md). Change notes go in
+  `docs/release-notes-<version>.md`, not in CHANGELOG.md.
 
 ## Architecture map
 
@@ -75,8 +76,8 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-On Windows `tests/test_runner.py` alone took about 6 min (2026-10-30): each test spawns
-workers that import every solver.
+On Windows the fast suite took 92 s on a quiet machine (2026-11-06) and timed out at 470 s
+on a loaded one (2026-10-30): each runner test spawns workers that import every solver.
 
 CI (`.github/workflows/ci.yml`) runs on `pull_request` and `workflow_dispatch` only:
 ubuntu py3.11, ubuntu py3.13, windows py3.13, plus a lint job.
@@ -171,15 +172,7 @@ means some units could not be prepared (no record written; fetch/prepare, then r
   in `docs/release-notes-0.1.0.md`, PDLP repro re-checked on highspy 1.15.1 and the
   upstream status in `docs/upstream/`, CI actions pinned to SHAs. The run-time projection
   was re-measured: nearest neighbours do not beat the tertile means (DESIGN 12, item 23).
-- **Open / next (2026-10-30):**
-  - Before the full study, decide whether to preregister a componentwise primal pass rule
-    (DESIGN 12, item 18): 29-58 verified first-order solves per config fail it at 1e-6.
-  - The permutation subset has only 3-5 instances above 0.5 s per simplex/IPM config;
-    time-variability results need the full study (300 s, larger instances).
-  - Reference values depend on machine load (a 60 s wall limit); consider a CPU-based
-    stop or a longer limit for the reference pass.
-  - The full study (`configs/full.toml`) has not been run; it needs chunked runs
-    (`--max-units`) of under 45 min each.
-  - HiGHS PDLP time limit: fixed upstream (HiGHS #3450), not in highspy 1.15.1. When a
-    release has it, follow `docs/upstream/highs-pdlp-time-limit.md` (bump, re-run the
-    repro, drop the external limit and its upstream test).
+- **Done (audit, 2026-11-06):** verifier overflow, reference pass refusing to blank values,
+  CLI count checks, stricter config validation, report guards, `perm` block in the full
+  config, parser cross-check over all 206 instances, HiGHS "Unknown" repro (DESIGN 12,
+  item 24). No published number changed.
