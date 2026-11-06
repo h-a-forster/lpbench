@@ -48,10 +48,11 @@ def execute(task: dict[str, Any]) -> dict[str, Any]:
 
     import numpy as np
 
+    from lpbench.config import REPORT_EPS
     from lpbench.lpmodel import load_npz, make_permutation, unpermute_dual, unpermute_primal
     from lpbench.solvers.base import SolveRequest, SolverStatus
     from lpbench.solvers.registry import make_adapter
-    from lpbench.verify import REPORT_EPS, objective_agrees, objective_rel_error, verify
+    from lpbench.verify import objective_agrees, objective_rel_error, verify
 
     rec: dict[str, Any] = {"worker_pid": os.getpid()}
     try:

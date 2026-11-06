@@ -25,6 +25,13 @@ def _cmd_versions(args: argparse.Namespace) -> int:
     return 0
 
 
+def _positive_int(text: str) -> int:
+    value = int(text)
+    if value < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1, got {text}")
+    return value
+
+
 def _suite_filter(cfg_name: str, suite: str | None):  # type: ignore[no-untyped-def]
     from lpbench.config import load_config
     from lpbench.instances import all_instances
@@ -80,6 +87,19 @@ def _cmd_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_exit(summary, log) -> int:  # type: ignore[no-untyped-def]
+    """Exit status of a finished run: 4 config errors, 5 units not run, otherwise 0."""
+    if summary.statuses.get("CONFIG_ERROR", 0):
+        return 4
+    if summary.not_run:
+        log(
+            f"{summary.not_run} units were not run because their input could not be prepared; "
+            "run `lpbench fetch` and `lpbench prepare` for this config, then rerun"
+        )
+        return 5
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     from pathlib import Path
 
@@ -99,17 +119,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         )
         return 3
     runner = Runner(cfg, out, units, workers=args.workers, provenance=provenance(), log=log)
-    summary = runner.run(max_units=args.max_units)
-    errors = summary.statuses.get("CONFIG_ERROR", 0)
-    if errors:
-        return 4
-    if summary.not_run:
-        log(
-            f"{summary.not_run} units were not run because their input could not be prepared; "
-            "run `lpbench fetch` and `lpbench prepare` for this config, then rerun"
-        )
-        return 5
-    return 0
+    return _run_exit(runner.run(max_units=args.max_units), log)
 
 
 def _cmd_status(args: argparse.Namespace) -> int:
@@ -156,7 +166,10 @@ def _cmd_reference(args: argparse.Namespace) -> int:
     out = Path(args.out or f"runs/{rcfg.name}")
     log = file_logger(out / "progress.log")
     runner = Runner(rcfg, out, units, provenance=provenance(), log=log)
-    runner.run()
+    rc = _run_exit(runner.run(), log)
+    if rc:  # an incomplete pass must not blank the committed values
+        log("the reference values were left unchanged")
+        return rc
     recs = [r for r in load_records(out).values() if r.get("config_hash") == rcfg.config_hash()]
     rows = build_reference_table(insts, recs)
     write_reference_csv(rows)
@@ -174,14 +187,18 @@ def _cmd_reference(args: argparse.Namespace) -> int:
 def _cmd_report(args: argparse.Namespace) -> int:
     from pathlib import Path
 
-    from lpbench.report import publish
+    from lpbench.report import ReportError, publish
 
     run_dir = Path(args.run_dir)
     if not (run_dir / "manifest.json").exists():
         print(f"no manifest.json in {run_dir}", file=sys.stderr)
         return 1
     out = Path(args.publish or run_dir / "report")
-    res = publish(run_dir, out, B=args.bootstrap)
+    try:
+        res = publish(run_dir, out, B=args.bootstrap)
+    except ReportError as exc:
+        print(exc, file=sys.stderr)
+        return 1
     m = res["meta"]
     print(f"report for {m['study']}: {m['units']} units -> {out}")
     print("primary ranking: " + " < ".join(res["tables"]["primary_ranking"]))
@@ -191,6 +208,11 @@ def _cmd_report(args: argparse.Namespace) -> int:
             f"WARNING: incomplete run: {comp.get('recorded')} of {comp.get('expected', '?')} "
             f"units recorded, {comp.get('main_missing_pairs')} main-block pairs missing; "
             "missing units are scored as failures at the time limit",
+            file=sys.stderr,
+        )
+    if m.get("unanalysed_blocks"):
+        print(
+            f"WARNING: blocks not analysed: {', '.join(m['unanalysed_blocks'])}",
             file=sys.stderr,
         )
     return 0
@@ -229,10 +251,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser("run", help="run a study (checkpointed, resumable, hard deadlines)")
     p_run.add_argument("--config", default="quick", help="config name or path")
     p_run.add_argument("--out", help="run directory (default runs/<config name>)")
-    p_run.add_argument("--workers", type=int, help="worker processes (at most the config's)")
+    p_run.add_argument(
+        "--workers", type=_positive_int, help="worker processes (at most the config's)"
+    )
     p_run.add_argument("--pilot", help="run directory of a pilot, for the projection")
     p_run.add_argument("--allow-long", action="store_true", help="run beyond the wall budget")
-    p_run.add_argument("--max-units", type=int, help="stop after this many units")
+    p_run.add_argument("--max-units", type=_positive_int, help="stop after this many units")
     p_run.set_defaults(func=_cmd_run)
 
     p_ref = sub.add_parser("reference", help="consensus reference values for MIPLIB relaxations")
@@ -247,7 +271,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_report = sub.add_parser("report", help="tables, figures and summary from a run directory")
     p_report.add_argument("run_dir")
     p_report.add_argument("--publish", help="output directory (default RUN_DIR/report)")
-    p_report.add_argument("--bootstrap", type=int, help="bootstrap resamples (default: config)")
+    p_report.add_argument(
+        "--bootstrap", type=_positive_int, help="bootstrap resamples (default: config)"
+    )
     p_report.set_defaults(func=_cmd_report)
     return parser
 

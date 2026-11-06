@@ -14,7 +14,8 @@ solvers anyone can `pip install`:
    feasibility and a small duality gap at one common tolerance, checked by independent code
    against the original problem data, and does its objective match a reference value?
 2. **Variability.** How much do run times, iteration counts and outcomes change when the same
-   problem is presented with its rows and columns permuted, or with a different solver seed?
+   problem is presented with its rows and columns permuted? (A study uses one seed; solver
+   seeds are not varied.)
 3. **Uncertainty.** What are the bootstrap intervals on shifted geometric means, ratios of
    them, and performance profiles, with instances as the sampling unit?
 4. **Sensitivity.** Which analyst choices change the ranking: trusting solver status versus
@@ -96,7 +97,7 @@ Notes recorded from probing the wheels on 2026-10-24 (re-check in M3):
   so. Values are facts; no problem data is committed.
 - Licence: the netlib pages state no licence; problems were contributed for free
   distribution. We commit only names, sizes, checksums and reference values.
-- Size: about 12 MB in total (MAROS-R7, 4.8 MB, is the largest).
+- Size: 7.8 MB in total (MAROS-R7, 0.75 MB, is the largest; see section 12, item 3).
 
 ### 3.2 MIPLIB 2017 benchmark-set LP relaxations (suite `miplib`)
 
@@ -158,7 +159,7 @@ src/lpbench/
 scripts/
   run_study.py      retry wrapper: resume-on-failure loop around `lpbench run`, scrubbed log
   build_miplib_manifest.py
-configs/            quick.toml, full.toml
+configs/            pilot.toml, quick.toml, full.toml
 ```
 
 Data flow: `fetch` downloads raw files. `prepare` reads each raw file with HiGHS once,
@@ -234,8 +235,9 @@ provenance (versions, git SHA, config hash, platform, worker pid).
 A run requests accuracy epsilon (1e-6 by default). The rule: first-order configs have their
 optimality tolerance set to epsilon (it defines the run). Simplex, IPM and SCIP configs keep
 their defaults, except that a feasibility or optimality tolerance looser than epsilon is
-tightened to epsilon. All configs get threads=1 and the time limit. The exact options per config and epsilon are listed in
-`solvers/registry.py` and copied verbatim into the report.
+tightened to epsilon. All configs get threads=1 and the time limit. The exact options per config and epsilon are built by
+the adapters (`solvers/registry.py` lists them), recorded in every unit, and copied verbatim
+from the records into the report.
 
 | Config | Options at epsilon = 1e-6 (beyond threads, time limit) |
 |---|---|
@@ -295,7 +297,7 @@ constraint bounds only, while `b_scale` also includes the variable bounds `l` an
 206 quick-study instances `b_scale` is more than 10x the row-only scale on 33 and more than
 1000x on 18 (big-M bounds: `mas74`/`mas76` 1e12 against 1.6e5, `GROW7/15/22` 1.1e6 against
 1). Because the scale is one infinity norm, a single large bound also loosens the test for
-every other row: on `trento1` (one rhs of 1e10, the rest of order 1) `x = 0, y = 0` violates
+every other row: on `trento1` (one rhs of 1e10, the rest at most 1608) `x = 0, y = 0` violates
 rows by 15 and still passes at 1e-8; only the reference objective rejects it. The pass rule is
 kept as preregistered; every record also carries two stricter primal measures as
 diagnostics, `rel_primal_rows` (row-only scale, as PDLP) and `rel_primal_comp`
@@ -343,11 +345,14 @@ infeasible or unbounded; any disagreement is reported as a finding to investigat
 - Every Netlib instance solved by `highs-dsimplex` at default tolerances must match the
   reference to 1e-6 relative; failures are investigated before any benchmark number is
   reported (the cause is either our expander, the MPS reading, or a flagged problem).
-- Parser cross-check: for each prepared instance, the model OR-Tools reads from our MPS
-  (exported to `MPModelProto`) matches the canonical LP's dimensions, bounds and matrix to
-  1e-12 (slow test over all instances, fast test over 5).
-- Permutation correctness: solving a permuted instance and un-permuting gives the same
-  verification result and objective (to 1e-9 relative) for a simplex config on 10 instances.
+- Parser cross-check: for each quick-study instance, the models OR-Tools and SCIP read from
+  our MPS match the canonical LP's dimensions, bounds and matrix to 1e-12 relative (slow
+  test over the 206 instances, fast test over synthetic LPs). One difference: SCIP reads
+  the right-hand side -2.8e-14 of `timtab1` row 31 as 0.
+- Permutation correctness: a harness test solves a permuted LP and compares the objective
+  with k = 0, and the permutation block is the check at scale: `highs-dsimplex`, `highs-ipx`
+  and `ortools-glop` verify all 30 subset instances against the reference in every
+  permutation, `scip-soplex` 29 (it times out on PILOT87 in every order).
 
 ### 6.3 Consensus reference for MIPLIB relaxations
 
@@ -470,8 +475,9 @@ Commands:
 uv run lpbench fetch --config quick
 uv run lpbench prepare --config quick
 uv run lpbench reference --config quick          # MIPLIB consensus values (cached)
-uv run lpbench plan --config quick
-uv run python scripts/run_study.py --config quick --out runs/quick
+uv run python scripts/run_study.py --config pilot --out runs/pilot
+uv run lpbench plan --config quick --pilot runs/pilot
+uv run python scripts/run_study.py --config quick --out runs/quick --pilot runs/pilot
 uv run lpbench report runs/quick --publish docs/results/quick
 # full size (many hours): resumable chunks, repeated until `lpbench status` shows all units
 uv run python scripts/run_study.py --config full --out runs/full --max-units 100
@@ -724,3 +730,19 @@ Recorded as they were made during implementation.
     matching the suite) projects 13.9-19.2 min, no better than the tertile means
     (16.9 min), so `planning.py` is unchanged. Machine load and a 20-instance pilot limit
     the projection; the 45 min budget leaves room for the observed 1.3x.
+24. **(audit, 2026-11-06) Fixes that change no published number.** The quick report
+    regenerates byte-identically after all of them. (a) `verify` treats overflowing `A x`
+    and `A^T y` as non-finite: a NaN compared as "no violation", so x = (1.5e308, 1.5e308) on
+    `2 x0 - 2 x1 >= 5` passed. (b) `lpbench reference` refuses to write the CSV when units
+    could not be run (exit 5): with an empty cache it blanked all 114 values and exited 0.
+    (c) `--workers`, `--max-units` and `--bootstrap` must be at least 1: `--workers -1` hung
+    in a busy loop and `--max-units -1` ran all but one unit. (d) `lpbench report` refuses a
+    run without main-block units instead of failing inside the figure code, and flags
+    blocks it does not analyse. (e) The variability table applies the wall-time budget of
+    item 21 (b). (f) The option table comes from the unit records, not from the current
+    code, so a report describes the run it was computed from. (g) Config files are
+    validated strictly: unknown keys, and values no code acts on (`verify_eps`, `penalty`
+    other than `par1`, the MIPLIB list, subset strata), are errors instead of being
+    ignored. Config hashes are unchanged. (h) `configs/full.toml` keeps its permutations in
+    a `perm` block, where the report reads them; in `main` they were recorded and never
+    analysed.

@@ -27,7 +27,14 @@ name = "main"
 suites = ["netlib", "miplib"]
 configs = "all"
 eps = 1e-6
-perms = [0, 1, 2, 3, 4]
+perms = [0]
+
+[[blocks]]
+name = "perm"
+suites = ["netlib", "miplib"]
+configs = "all"
+eps = 1e-6
+perms = [1, 2, 3, 4]
 
 [[blocks]]
 name = "eps1e-8"

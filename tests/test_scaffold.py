@@ -11,6 +11,7 @@ import pytest
 
 import lpbench
 from lpbench import cli
+from lpbench.config import load_config
 from lpbench.versions import TRACKED_DISTRIBUTIONS, provenance
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -58,6 +59,27 @@ def test_provenance_has_no_local_paths() -> None:
     home = str(Path.home())
     assert home not in text
     assert str(Path(sys.executable).parent) not in text
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["run", "--workers", "-1"],
+        ["run", "--workers", "0"],
+        ["run", "--max-units", "-1"],
+        ["report", "x", "--bootstrap", "0"],
+    ],
+)
+def test_cli_refuses_counts_below_one(argv: list[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(argv)
+    assert exc.value.code == 2
+
+
+@pytest.mark.parametrize("name", ["pilot", "quick", "full"])
+def test_permutations_are_in_the_block_the_report_reads(name: str) -> None:
+    for block in load_config(name).blocks:
+        assert block.name == "perm" or block.perms == (0,)
 
 
 @pytest.mark.parametrize("name", ["quick", "full"])

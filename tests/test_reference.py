@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from lpbench.cli import main
 from lpbench.config import load_config
 from lpbench.reference import (
     REFERENCE_CONFIGS,
@@ -60,6 +61,16 @@ def test_reference_config() -> None:
     assert rc.name == "quick-reference" and tuple(rc.configs) == REFERENCE_CONFIGS
     assert rc.time_limit_s == 60.0 and [b.eps for b in rc.blocks] == [1e-9]
     assert [tuple(b.suites) for b in rc.blocks] == [("miplib",)]
+
+
+def test_pass_with_missing_inputs_leaves_the_values_alone(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("LPBENCH_CACHE", str(tmp_path / "empty"))
+    written: list[object] = []
+    monkeypatch.setattr("lpbench.reference.write_reference_csv", written.append)
+    assert main(["reference", "--config", "quick", "--out", str(tmp_path / "run")]) == 5
+    assert written == []
 
 
 def test_write_csv_merges_and_sorts(tmp_path: Path) -> None:

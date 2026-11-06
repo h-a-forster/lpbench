@@ -119,6 +119,33 @@ def test_no_primal_returns_none_and_nan_primal_fails() -> None:
     assert v is not None and math.isinf(v.primal_residual) and not v.passes(1.0)
 
 
+def test_overflowing_products_never_pass() -> None:
+    # 2 x0 - 2 x1 >= 5 with both products overflowing: A x is NaN, which compares as no violation
+    lp = make_lp(
+        "overflow",
+        [[2.0, -2.0], [1.0, 0.0]],
+        [0.0, 0.0],
+        [5.0, 0.0],
+        [np.inf, np.inf],
+        [-np.inf, -np.inf],
+        [np.inf, np.inf],
+    )
+    v = verify(lp, np.array([1.5e308, 1.5e308]), np.zeros(2))
+    assert v is not None and math.isinf(v.primal_residual) and not v.passes(1.0)
+    # the same on the dual side: z = c - A^T y is NaN on free columns of equality rows
+    lp = make_lp(
+        "overflow-dual",
+        [[2.0, -2.0], [-2.0, 2.0]],
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [0.0, 0.0],
+        [-np.inf, -np.inf],
+        [np.inf, np.inf],
+    )
+    v = verify(lp, np.zeros(2), np.array([1.5e308, 1.5e308]))
+    assert v is not None and not v.has_dual and not v.passes(1.0)
+
+
 def test_wrong_shape_raises() -> None:
     k = all_types_lp()
     with pytest.raises(ValueError):

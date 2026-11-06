@@ -277,6 +277,17 @@ def test_config_validation() -> None:
         {"blocks": [{"name": "b", "eps": 1e-6}, {"name": "b", "eps": 1e-6}]},
         {"blocks": [{"name": "b", "eps": 1e-6, "instances": ["afiro"]}]},
         {"blocks": [{"name": "b", "eps": 1e-6, "instances": ["netlib/A", "netlib/A"]}]},
+        {"blocks": [{"name": "b", "eps": 1e-6, "repeats": 0}]},
+        {"blocks": [{"name": "b", "eps": 1e-6, "perms": []}]},
+        # options that nothing reads must not pass silently
+        {"time_limt_s": 1},
+        {"blocks": [{"name": "b", "eps": 1e-6, "perm": [1]}]},
+        {"blocks": [{"name": "b", "eps": 1e-6, "subset": {"per_suite": 3, "strata": "other"}}]},
+        {"suites": {"miplib": {"list": "collection"}}},
+        {"suites": {"netlib": {"exclud": ["AFIRO"]}}},
+        {"stats": {"bootstrap_resample": 10}},
+        {"stats": {"penalty": "par2"}},
+        {"verify_eps": [1e-3]},
     ):
         with pytest.raises(ConfigError):
             parse_config({**good, **patch})

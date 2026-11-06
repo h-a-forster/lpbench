@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import tomllib
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -19,10 +20,37 @@ CONFIG_IDS = (
     "scip-soplex",
 )
 SUITES = ("netlib", "miplib")
+#: Tolerances at which every unit is classified (DESIGN 5.2).
+REPORT_EPS: tuple[float, ...] = (1e-4, 1e-6, 1e-8)
 MAX_WORKERS = 3
 MAX_DOWNLOAD_BYTES = 2_000_000_000
 
 ROOT = Path(__file__).resolve().parents[2]
+
+_TOP_KEYS = frozenset(
+    {
+        "name",
+        "workers",
+        "time_limit_s",
+        "hard_deadline_factor",
+        "hard_deadline_extra_s",
+        "download_cap_bytes",
+        "seed",
+        "configs",
+        "first_order",
+        "verify_eps",
+        "suites",
+        "blocks",
+        "stats",
+        "max_projected_wall_min",
+    }
+)
+_BLOCK_KEYS = frozenset(
+    {"name", "suites", "configs", "eps", "perms", "subset", "repeats", "instances"}
+)
+_SUBSET_KEYS = frozenset({"per_suite", "strata", "salt"})
+_SUITE_KEYS = {"netlib": frozenset({"exclude"}), "miplib": frozenset({"list", "max_nnz"})}
+_STATS_KEYS = frozenset({"bootstrap_resamples", "shift_s", "shift_sensitivity_s", "penalty"})
 
 
 class ConfigError(ValueError):
@@ -114,7 +142,14 @@ def _instance_ids(value: Any) -> tuple[str, ...]:
     return ids
 
 
+def _only_keys(section: dict[str, Any], allowed: Iterable[str], where: str) -> None:
+    unknown = sorted(set(section) - set(allowed))
+    if unknown:
+        raise ConfigError(f"unknown keys in {where}: {unknown}")
+
+
 def parse_config(raw: dict[str, Any]) -> StudyConfig:
+    _only_keys(raw, _TOP_KEYS, "the config")
     try:
         configs = tuple(raw["configs"])
         unknown = sorted(set(configs) - set(CONFIG_IDS))
@@ -136,14 +171,20 @@ def parse_config(raw: dict[str, Any]) -> StudyConfig:
             raise ConfigError("time_limit_s must be positive")
         blocks: list[Block] = []
         for b in raw["blocks"]:
+            _only_keys(b, _BLOCK_KEYS, "a block")
             subset = b.get("subset", {})
+            _only_keys(subset, _SUBSET_KEYS, "a block subset")
+            if subset.get("strata", "nnz_tertiles") != "nnz_tertiles":
+                raise ConfigError("the only subset strata are nnz_tertiles")
+            if int(subset.get("per_suite", 0)) < 0 or int(b.get("repeats", 1)) < 1:
+                raise ConfigError("per_suite must be >= 0 and repeats >= 1")
             suites = tuple(b.get("suites", SUITES if not subset else SUITES))
             for s in suites:
                 if s not in SUITES:
                     raise ConfigError(f"unknown suite {s!r}")
             perms = tuple(int(k) for k in b.get("perms", [0]))
-            if any(k < 0 for k in perms):
-                raise ConfigError("permutation indices must be >= 0")
+            if not perms or any(k < 0 for k in perms):
+                raise ConfigError("perms must be a non-empty list of indices >= 0")
             eps = float(b["eps"])
             if not 0 < eps < 1:
                 raise ConfigError("eps must be in (0, 1)")
@@ -165,8 +206,13 @@ def parse_config(raw: dict[str, Any]) -> StudyConfig:
         if len(set(names)) != len(names):
             raise ConfigError("duplicate block names")
         stats = raw.get("stats", {})
-        netlib = raw.get("suites", {}).get("netlib", {})
-        miplib = raw.get("suites", {}).get("miplib", {})
+        _only_keys(stats, _STATS_KEYS, "stats")
+        suite_cfg = raw.get("suites", {})
+        _only_keys(suite_cfg, _SUITE_KEYS, "suites")
+        for s, keys in _SUITE_KEYS.items():
+            _only_keys(suite_cfg.get(s, {}), keys, f"suites.{s}")
+        netlib = suite_cfg.get("netlib", {})
+        miplib = suite_cfg.get("miplib", {})
         cfg = StudyConfig(
             name=str(raw["name"]),
             workers=workers,
@@ -191,8 +237,12 @@ def parse_config(raw: dict[str, Any]) -> StudyConfig:
         )
     except KeyError as exc:
         raise ConfigError(f"missing config key {exc}") from exc
-    if cfg.penalty not in ("par1", "par2"):
-        raise ConfigError("penalty must be par1 or par2")
+    if cfg.penalty != "par1":
+        raise ConfigError("penalty must be par1 (the report always adds PAR2 as a sensitivity)")
+    if cfg.verify_eps != REPORT_EPS:
+        raise ConfigError(f"verify_eps must be {list(REPORT_EPS)}: workers classify at these")
+    if cfg.miplib_list != "benchmark-v2":
+        raise ConfigError("the only MIPLIB list is benchmark-v2")
     return cfg
 
 

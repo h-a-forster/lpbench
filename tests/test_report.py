@@ -229,6 +229,45 @@ def test_incomplete_run_is_flagged(tmp_path: Path, capsys: pytest.CaptureFixture
     assert "**Incomplete run:**" in (out / "summary.md").read_text(encoding="utf-8")
 
 
+def test_late_permutation_is_a_status_flip(tmp_path: Path) -> None:
+    run = make_run(tmp_path)
+    rec = R.load_run(run).select(block="perm", config="scip-soplex")[0]
+    _write(run, rec | {"solve_wall_s": TL + 1.0})
+    var = R.build(R.load_run(run), B=50)["tables"]["variability"]
+    assert var["scip-soplex"]["status_flips"] == 1 and var["highs-dsimplex"]["status_flips"] == 0
+
+
+def test_options_come_from_the_records(tmp_path: Path) -> None:
+    run = make_run(tmp_path)
+    rec = R.load_run(run).select(block="main", config="highs-pdlp")[0]
+    _write(run, rec | {"options": {"as_run": 1}})
+    out = tmp_path / "pub"
+    R.publish(run, out, B=50)
+    assert '- `highs-pdlp`: `{"as_run": 1}`' in (out / "summary.md").read_text(encoding="utf-8")
+
+
+def test_run_without_a_main_block_is_refused(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run = make_run(tmp_path)
+    for rec in R.load_run(run).select(block="main"):
+        (run / "units" / f"{rec['unit_id']}.json").unlink()
+    assert main(["report", str(run), "--publish", str(tmp_path / "pub")]) == 1
+    assert "main" in capsys.readouterr().err
+    assert not (tmp_path / "pub").exists()
+
+
+def test_block_outside_the_analysis_is_flagged(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    run = make_run(tmp_path)
+    _write(run, _rec("eps1e-8", "netlib", 0, CONFIGS[0], 0, 1.0, eps=1e-8))
+    out = tmp_path / "pub"
+    assert main(["report", str(run), "--publish", str(out), "--bootstrap", "50"]) == 0
+    assert "blocks not analysed: eps1e-8" in capsys.readouterr().err
+    assert "Blocks not analysed:** eps1e-8" in (out / "summary.md").read_text(encoding="utf-8")
+
+
 def test_publish_is_byte_identical(tmp_path: Path) -> None:
     run = make_run(tmp_path)
     a, b = tmp_path / "a", tmp_path / "b"

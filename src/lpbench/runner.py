@@ -25,7 +25,7 @@ from typing import Any
 from lpbench.config import StudyConfig
 from lpbench.instances import Instance, canonical_reference, stratified_subset, suite_instances
 from lpbench.solvers.base import EXTERNAL_TIME_LIMIT, EXTERNAL_TL_GRACE_S
-from lpbench.worker import THREAD_ENV, pin_threads
+from lpbench.worker import pin_threads
 
 FIRST_ORDER_COST = 25.0  # default relative cost of a first-order unit before a pilot exists
 
@@ -358,8 +358,6 @@ class Runner:
             return summary
 
         pin_threads()  # inherited by spawned workers
-        for key, value in THREAD_ENV.items():
-            os.environ[key] = value
         ctx = mp.get_context("spawn")
         slots = [self._spawn(ctx) for _ in range(min(self.workers, len(todo)))]
         for s in slots:

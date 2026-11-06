@@ -27,6 +27,11 @@ PROFILE_FLOOR_S = 0.02  # timer granularity guard for performance-profile ratios
 #: time is at least this long: 32 steps of the 15.6 ms Windows process-time clock.
 GSD_MIN_TIME_S = 0.5
 FAIL_GROUPS = ("claimed_unverified", "TIME_LIMIT", "KILLED", "ERROR", "NUMERICAL", "other")
+ANALYSED_BLOCKS = frozenset({"main", "perm", "eps1e-4", "noise"})
+
+
+class ReportError(ValueError):
+    """The run directory holds nothing this report can be computed from."""
 
 
 # --------------------------------------------------------------------------------------------
@@ -351,6 +356,8 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
     main_eps = next((float(b["eps"]) for b in cfg["blocks"] if b["name"] == "main"), 1e-6)
     ek = eps_key(main_eps)
     main = [r for r in run.records if r["block"] == "main" and r["k"] == 0]
+    if not main:
+        raise ReportError(f"no finished units of a 'main' block in {run.run_dir.name}")
     instances = sorted({r["instance"] for r in main})
     suites = sorted({r["suite"] for r in main})
     inst_suite = {r["instance"]: r["suite"] for r in main}
@@ -388,6 +395,9 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
         "hidden_thread_flags": sum(1 for r in run.records if r.get("hidden_threads")),
         "completeness": completeness(run),
     }
+    unanalysed = sorted(set(blocks) - ANALYSED_BLOCKS)
+    if unanalysed:
+        res["meta"]["unanalysed_blocks"] = unanalysed
 
     # -- outcomes ------------------------------------------------------------------------------
     res["tables"]["outcomes"] = {"all": outcome_table(main, configs, ek, TL)}
@@ -630,7 +640,10 @@ def build(run: RunData, B: int | None = None, shift: float | None = None) -> dic
                 rs = [allk.get((inst, c, k)) for k in ks_all]
                 if any(r is None for r in rs):
                     continue
-                okk = [solved_verified(ek)(r) for r in rs]  # type: ignore[arg-type]
+                okk = [
+                    solved_verified(ek)(r) and not over_limit(r, TL)  # type: ignore[arg-type]
+                    for r in rs
+                ]
                 tt = [time_of(r) for r in rs]  # type: ignore[arg-type]
                 for kk, (o, t) in enumerate(zip(okk, tt, strict=True)):
                     T3[i, j, kk] = min(t, TL) if o else TL
@@ -766,6 +779,11 @@ def to_markdown(res: dict[str, Any], option_table: dict[str, Any] | None = None)
             "main block). Missing units are scored as failures at the time limit, and the "
             "runner runs the most expensive units first, so these numbers are biased. Finish "
             "the run before using them.\n\n"
+        )
+    if m.get("unanalysed_blocks"):
+        w(
+            f"> **Blocks not analysed:** {', '.join(m['unanalysed_blocks'])}. Their units are "
+            "counted in the totals below but enter no table.\n\n"
         )
     w("## What was run\n\n")
     inst = ", ".join(f"{k} {v}" for k, v in m["instances"].items())
@@ -1274,13 +1292,19 @@ def write_units_csv(run: RunData, path: Path) -> None:
             wr.writerow(row)
 
 
-def publish(run_dir: Path, out_dir: Path, B: int | None = None) -> dict[str, Any]:
-    from lpbench.solvers.registry import option_table
+def run_options(run: RunData) -> dict[str, Any]:
+    """Options of each config in the main block, as the units recorded them."""
+    found: dict[str, Any] = {}
+    for r in run.records:
+        if r["block"] == "main" and r.get("options"):
+            found.setdefault(r["config"], r["options"])
+    return {c: found[c] for c in run.configs if c in found}
 
+
+def publish(run_dir: Path, out_dir: Path, B: int | None = None) -> dict[str, Any]:
     run = load_run(run_dir)
     res = build(run, B=B)
-    cfg = run.manifest["config"]
-    opts = option_table(1e-6, float(cfg["time_limit_s"]), int(cfg["seed"]))
+    opts = run_options(run)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / "results.json").write_text(

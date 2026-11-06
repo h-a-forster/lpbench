@@ -24,8 +24,6 @@ import numpy as np
 
 from lpbench.lpmodel import CanonicalLP
 
-#: Tolerances at which every unit is classified (DESIGN 5.2).
-REPORT_EPS: tuple[float, ...] = (1e-4, 1e-6, 1e-8)
 UNIT_ROUNDOFF = 2.0**-53
 
 
@@ -154,7 +152,8 @@ def verify(lp: CanonicalLP, x: np.ndarray | None, y: np.ndarray | None) -> Verif
     """Verify (x, y) against ``lp``. Returns None if there is no primal vector at all.
 
     A missing or non-finite dual gives ``has_dual = False`` and infinite dual quantities, so
-    the pair never passes. A non-finite primal gives infinite residuals.
+    the pair never passes. A non-finite primal gives infinite residuals. Products that
+    overflow count as non-finite: a NaN would compare as "no violation".
     """
     if x is None:
         return None
@@ -166,19 +165,21 @@ def verify(lp: CanonicalLP, x: np.ndarray | None, y: np.ndarray | None) -> Verif
     absA = abs(lp.A)
     row_len = np.diff(lp.A.indptr).astype(np.float64)
 
-    if not np.isfinite(x).all():
+    ax = lp.A @ x if np.isfinite(x).all() else None
+    if ax is None or not np.isfinite(ax).all():
         r_p, p_obj, floor_p, comp_p = inf, inf, inf, inf
     else:
-        ax = lp.A @ x
         r_p = primal_residual(lp, x, ax)
         comp_p = componentwise_primal_residual(lp, x, ax)
         p_obj = float(lp.c @ x) + lp.c0
         floor_p = _finite_max(row_len * UNIT_ROUNDOFF * (absA @ np.abs(x))) / b_scale
 
-    has_dual = y is not None and np.shape(y) == (lp.m,) and bool(np.isfinite(y).all())
-    if has_dual:
+    z = None
+    if y is not None and np.shape(y) == (lp.m,) and np.isfinite(y).all():
         y = np.asarray(y, dtype=np.float64)
         z = lp.c - lp.A.T @ y
+    has_dual = z is not None and bool(np.isfinite(z).all())
+    if has_dual:
         inf_y, d_y = _dual_parts(y, lp.rl, lp.ru)
         inf_z, d_z = _dual_parts(z, lp.l, lp.u)
         r_d = max(inf_y, inf_z)

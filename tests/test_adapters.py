@@ -7,8 +7,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import scipy.sparse as sp
 
-from lpbench.config import CONFIG_IDS
+from lpbench.config import CONFIG_IDS, load_config
+from lpbench.instances import all_instances
 from lpbench.lpmodel import INF, CanonicalLP, load_npz, make_lp, write_mps
 from lpbench.solvers.base import SolveRequest, SolverStatus
 from lpbench.solvers.registry import FIRST_ORDER, make_adapter, option_table
@@ -153,11 +155,12 @@ def _ortools_arrays(path: Path) -> tuple[np.ndarray, ...]:
     up = np.array([v.upper_bound for v in p.variable])
     rl = np.array([r.lower_bound for r in p.constraint])
     ru = np.array([r.upper_bound for r in p.constraint])
-    A = np.zeros((rows, n))
-    for i, r in enumerate(p.constraint):
-        for j, a in zip(r.var_index, r.coefficient, strict=True):
-            A[i, j] += a
-    return A, c, rl, ru, lo, up
+    assert [v.name for v in p.variable] == [f"C{j}" for j in range(n)]  # the adapter relies on it
+    assert [r.name for r in p.constraint] == [f"R{i}" for i in range(rows)]
+    ri = [i for i, r in enumerate(p.constraint) for _ in r.var_index]
+    ci = [j for r in p.constraint for j in r.var_index]
+    vals = [a for r in p.constraint for a in r.coefficient]
+    return sp.csr_matrix((vals, (ri, ci)), shape=(rows, n)), c, rl, ru, lo, up
 
 
 def _scip_arrays(path: Path) -> tuple[np.ndarray, ...]:
@@ -170,13 +173,15 @@ def _scip_arrays(path: Path) -> tuple[np.ndarray, ...]:
     col = {v.name: int(v.name[1:]) for v in vs}
     n = len(vs)
     conss = m.getConss()
-    A = np.zeros((len(conss), n))
+    ri, ci, vals = [], [], []
     rl = np.empty(len(conss))
     ru = np.empty(len(conss))
     for c in conss:
         i = int(c.name[1:])
         for name, a in m.getValsLinear(c).items():
-            A[i, col[name]] += a
+            ri.append(i)
+            ci.append(col[name])
+            vals.append(a)
         rl[i], ru[i] = m.getLhs(c), m.getRhs(c)
     c_ = np.zeros(n)
     lo = np.zeros(n)
@@ -184,7 +189,7 @@ def _scip_arrays(path: Path) -> tuple[np.ndarray, ...]:
     for v in vs:
         j = col[v.name]
         c_[j], lo[j], up[j] = v.getObj(), v.getLbOriginal(), v.getUbOriginal()
-    return A, c_, rl, ru, lo, up
+    return sp.csr_matrix((vals, (ri, ci)), shape=(len(conss), n)), c_, rl, ru, lo, up
 
 
 def _clean(a: np.ndarray) -> np.ndarray:
@@ -196,10 +201,12 @@ def _clean(a: np.ndarray) -> np.ndarray:
 
 def _assert_reads_same(lp: CanonicalLP, path: Path, reader) -> None:  # type: ignore[no-untyped-def]
     A, c, rl, ru, lo, up = reader(path)
-    np.testing.assert_allclose(A, lp.A.toarray(), rtol=1e-12, atol=0)
+    assert A.shape == lp.A.shape
+    assert (abs(A - lp.A) > 1e-12 * abs(lp.A)).nnz == 0
     np.testing.assert_allclose(c, lp.c, rtol=1e-12, atol=0)
     for got, want in ((rl, lp.rl), (ru, lp.ru), (lo, lp.l), (up, lp.u)):
-        np.testing.assert_allclose(_clean(got), want, rtol=1e-12, atol=0)
+        # atol: SCIP snaps a right-hand side of -2.8e-14 to 0 (MIPLIB timtab1, row 31)
+        np.testing.assert_allclose(_clean(got), want, rtol=1e-12, atol=1e-13)
 
 
 @pytest.mark.parametrize("reader", [_ortools_arrays, _scip_arrays], ids=["ortools", "scip"])
@@ -214,9 +221,6 @@ def test_parser_cross_check_synthetic(reader, seed: int, tmp_path: Path) -> None
     _assert_reads_same(k2.lp, path, reader)
 
 
-NETLIB_FIVE = ["AFIRO", "BOEING1", "PILOT4", "SCAGR7", "VTP.BASE"]
-
-
 def _netlib_cached(name: str) -> tuple[CanonicalLP, Path]:
     npz = CACHE / "canonical" / "netlib" / f"{name}.npz"
     mps = CACHE / "mps" / "netlib" / f"{name}__p0.mps"
@@ -227,10 +231,12 @@ def _netlib_cached(name: str) -> tuple[CanonicalLP, Path]:
 
 @pytest.mark.slow
 @pytest.mark.parametrize("reader", [_ortools_arrays, _scip_arrays], ids=["ortools", "scip"])
-@pytest.mark.parametrize("name", NETLIB_FIVE)
-def test_parser_cross_check_netlib(reader, name: str) -> None:  # type: ignore[no-untyped-def]
-    lp, mps = _netlib_cached(name)
-    _assert_reads_same(lp, mps, reader)
+def test_parser_cross_check_every_quick_instance(reader) -> None:  # type: ignore[no-untyped-def]
+    insts = all_instances(load_config("quick"))
+    if not all(i.mps_path(0, CACHE).exists() for i in insts):
+        pytest.skip("quick instances not prepared")
+    for inst in insts:
+        _assert_reads_same(load_npz(inst.canonical_path(CACHE)), inst.mps_path(0, CACHE), reader)
 
 
 NETLIB_TEN = [
