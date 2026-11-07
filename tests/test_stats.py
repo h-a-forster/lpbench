@@ -39,6 +39,14 @@ def test_holm_textbook() -> None:
     assert S.holm([]).size == 0
 
 
+def test_holm_nan_stays_nan_and_leaves_the_family() -> None:
+    nan = float("nan")
+    np.testing.assert_allclose(S.holm([0.01, nan, 0.02]), [0.02, nan, 0.02])
+    np.testing.assert_allclose(S.holm([nan, 0.01, 0.02]), [nan, 0.02, 0.02])
+    # A failed test must never read as significant: unguarded, all-NaN came back as 0.0.
+    assert np.isnan(S.holm([nan, nan])).all()
+
+
 def test_profile_step_function() -> None:
     T = np.array([[1.0, 2.0], [2.0, 1.0], [1.0, 5.0]])
     solved = np.array([[True, True], [True, True], [True, False]])

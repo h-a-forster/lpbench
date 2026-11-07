@@ -226,15 +226,16 @@ def profile_bands(
 
 
 def holm(pvals: list[float] | np.ndarray) -> np.ndarray:
-    """Holm (1979) step-down adjusted p-values, in the input order."""
+    """Holm (1979) step-down adjusted p-values, in the input order.
+
+    NaN entries stay NaN and do not count toward the family size.
+    """
     p = np.asarray(pvals, dtype=float)
-    m = p.size
-    if m == 0:
-        return p
-    order = np.argsort(p, kind="stable")
-    adj = np.empty(m)
+    adj = np.full_like(p, np.nan)
+    kept = np.flatnonzero(~np.isnan(p))
+    m = kept.size
     running = 0.0
-    for rank, i in enumerate(order):
+    for rank, i in enumerate(kept[np.argsort(p[kept], kind="stable")]):
         running = max(running, (m - rank) * p[i])
         adj[i] = min(1.0, running)
     return adj

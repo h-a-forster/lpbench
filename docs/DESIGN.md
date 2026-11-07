@@ -786,3 +786,7 @@ Recorded as they were made during implementation.
     family. Solver options and versions are unchanged, so the published numbers stand; they
     came from Windows workers that had all three families loaded, and `worker_peak_rss_kb`
     (POSIX only, so absent from them) now counts one family.
+29. **(Stats, 2026-11-07) Holm leaves NaN out of the family.** A NaN p-value now stays NaN and
+    does not count toward m. Before, all-NaN came back as adjusted 0.0, so a broken test read
+    as significant, and a NaN elsewhere took the largest adjusted value of the others. Inputs
+    without NaN give the same result, so the published numbers stand.
