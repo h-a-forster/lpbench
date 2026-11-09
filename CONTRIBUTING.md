@@ -56,6 +56,6 @@ maintainers.
 
 - One change per pull request, with tests and docs.
 - Put notes on user-visible changes in `docs/release-notes-<version>.md`.
-- Keep [AGENTS.md](AGENTS.md) and the open work in [backlog.md](backlog.md) current.
+- Keep [AGENTS.md](AGENTS.md) current.
 
 Security issues: see [SECURITY.md](SECURITY.md). Do not open a public issue.

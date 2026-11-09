@@ -36,7 +36,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
   families of DESIGN section 7. "Claimed optimal but failed verification" is a tolerance
   outcome unless the bug-claim protocol (DESIGN 6.4 item 5) is complete.
 - Never push, create remotes or publish without the owner's go-ahead.
-- Open work lives in [backlog.md](backlog.md). Change notes go in
+- Open work lives in `backlog.md`. Change notes go in
   `docs/release-notes-<version>.md`, not in CHANGELOG.md.
 
 ## Architecture map
