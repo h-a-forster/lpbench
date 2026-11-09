@@ -5,7 +5,6 @@
 ## Waiting on me
 
 - `polish-2026-10-30` is merged into `main` through a pull request, so CI runs for the first time, and `v0.1.0` is tagged.
-- Private vulnerability reporting is enabled on GitHub, or `SECURITY.md` names another channel: it points at a Security tab form that is off.
 - The GitHub repository description no longer says "seeds and permutations": solver seeds are not varied.
 - A decision on the `Co-Authored-By` trailers in the 13 public `main` commits: leave them, or rewrite history with a force push.
 
