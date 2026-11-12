@@ -58,7 +58,8 @@ claims about GPU solvers, multi-threaded performance or commercial solvers.
   residual check and is caught only by the reference objective.
 - With a finite `time_limit`, HiGHS PDLP in the highspy 1.15.1 wheel stopped after a tiny
   fraction of the limit on Windows (standalone reproduction:
-  [docs/repros/](docs/repros/highs-pdlp-time-limit.md); fixed upstream, not yet released).
+  [docs/repros/](docs/repros/highs-pdlp-time-limit.md); fixed in HiGHS 1.16.0, not yet
+  re-tested here).
   lpbench enforces that config's limit externally.
 
 These numbers hold for small instances and a short limit, on one shared Windows machine;

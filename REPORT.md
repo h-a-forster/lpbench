@@ -234,7 +234,8 @@ there only because it compared a Netlib-only ranking with the all-instance one.
    The pilot showed 26 of 30 units "timing out" within 0.26 s. A standalone reproduction
    that uses no lpbench code is in
    [docs/repros/highs-pdlp-time-limit.md](docs/repros/highs-pdlp-time-limit.md). It is
-   reproduced on one platform only. The cause is fixed upstream but not yet released
+   reproduced on one platform only. The cause is fixed in HiGHS 1.16.0, released on
+   2026-11-11 after this study; lpbench still pins 1.15.1 and has not re-tested
    ([docs/upstream/](docs/upstream/highs-pdlp-time-limit.md)). lpbench enforces
    this config's limit externally (TL + 5 s, then TIME_LIMIT; an answer after 10 s of wall
    time is scored as TIME_LIMIT, like every other config).
