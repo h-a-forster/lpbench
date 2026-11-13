@@ -10,8 +10,9 @@ optimum of the LP the solvers receive (every float of the canonical model, read 
 rational it denotes). Otherwise certkkt's repairs run on the float pair; a ``bounded``
 certificate encloses the optimum in ``[dobj, pobj]``.
 
-Nothing here trusts a solver: HiGHS only proposes the basis, and only certkkt's ``certify``
-decides the level.
+Nothing here trusts a solver: HiGHS only proposes the basis. certkkt's ``certify`` decides
+``optimal`` and ``bounded``; ``infeasible`` comes from this module's exact Farkas check
+(``ExactBasis._farkas``), which certkkt never sees.
 """
 
 from __future__ import annotations

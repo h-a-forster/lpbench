@@ -836,8 +836,8 @@ Recorded as they were made during implementation.
     (no exactly feasible basis within 200 pivots), DFL001, PILOT87 and WOOD1P (600 s
     budget). PILOT.JA, PILOTNOV, SCORPION and SIERRA are infeasible in exact arithmetic
     once their decimal data are rounded to float64: a combination of equality rows and
-    fixed bounds sums to about 3.6e-15 instead of 0 (Farkas certificate, re-checked with
-    `fractions.Fraction`); their Koch values, for the decimal data, stay. The 85 Netlib
+    fixed bounds sums to a tiny nonzero value instead of 0 (Farkas certificate, re-checked
+    with `fractions.Fraction`); their Koch values, for the decimal data, stay. The 85 Netlib
     exact optima agree with Koch to at most 2.3e-14 relative. Of the 113 MIPLIB values, 60
     differ from the consensus, all by at most 3.6e-13 relative (`milo-v12-6-r2-40-1`), and
     no verdict of the quick run changes: `scripts/compare_references.py runs/quick`
