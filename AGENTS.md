@@ -7,7 +7,7 @@ change.
 
 ## What this is
 
-An honest CPU benchmark of open-source LP solvers installable from PyPI: HiGHS 1.15.1 (dual
+An honest CPU benchmark of open-source LP solvers installable from PyPI: HiGHS 1.16.0 (dual
 simplex, IPX, PDLP, HiPDLP), OR-Tools 9.15 (GLOP, PDLP) and SCIP 10 / SoPlex 8 via PySCIPOpt
 6.3.0, on Netlib and size-capped MIPLIB 2017 benchmark LP relaxations. The contribution is
 the methodology: independent verification of every reported optimum, performance

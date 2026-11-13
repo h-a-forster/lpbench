@@ -25,7 +25,6 @@ from typing import Any
 
 from lpbench.config import StudyConfig
 from lpbench.instances import Instance, canonical_reference, stratified_subset, suite_instances
-from lpbench.solvers.base import EXTERNAL_TIME_LIMIT, EXTERNAL_TL_GRACE_S
 from lpbench.solvers.registry import solver_family
 from lpbench.worker import pin_threads
 
@@ -331,13 +330,6 @@ class Runner:
 
     # -- main loop ----------------------------------------------------------------------------
 
-    def _deadline(self, slot: Any) -> float:
-        """Seconds after dispatch at which the slot's worker is killed."""
-        cfg_id = slot.task.get("config") if slot.task else None
-        if cfg_id in EXTERNAL_TIME_LIMIT:
-            return min(self.cfg.hard_deadline_s, self.cfg.time_limit_s + EXTERNAL_TL_GRACE_S)
-        return self.cfg.hard_deadline_s
-
     def run(self, max_units: int | None = None) -> RunSummary:
         t_start = time.perf_counter()
         self.run_dir.mkdir(parents=True, exist_ok=True)
@@ -427,7 +419,7 @@ class Runner:
                 if not busy:
                     continue
                 now = time.perf_counter()
-                next_deadline = min(s.started + self._deadline(s) for s in busy)
+                next_deadline = min(s.started + self.cfg.hard_deadline_s for s in busy)
                 timeout = max(0.0, min(next_deadline - now, 1.0))
                 ready = wait([s.conn for s in busy] + [s.proc.sentinel for s in busy], timeout)
                 for i, s in enumerate(slots):
@@ -454,18 +446,15 @@ class Runner:
                         )
                         slots[i] = self._spawn_ready(ctx, s.family)
                         continue
-                    limit = self._deadline(s)
+                    limit = self.cfg.hard_deadline_s
                     if time.perf_counter() - s.started > limit:
                         s.proc.kill()
                         s.proc.join(timeout=10)
-                        external = limit < self.cfg.hard_deadline_s
                         finish(
                             s,
                             {
-                                "status": "TIME_LIMIT" if external else "KILLED",
-                                "raw_status": "external time limit"
-                                if external
-                                else "hard deadline",
+                                "status": "KILLED",
+                                "raw_status": "hard deadline",
                                 "message": f"killed after {limit:.1f} s",
                                 "solve_wall_s": time.perf_counter() - s.started,
                             },

@@ -37,7 +37,7 @@ lpbench makes no claim about GPU solvers, multi-threaded performance, or commerc
 | Mittelmann "LPfeas" instances | Out of v0.1; optional suite later (S2) | Most instances need far more than the 45-minute budget on CPU; the redistribution terms are not stated. |
 | MIPLIB 2017 "collection" (1,065 instances) | Out | The benchmark set (240) is curated and documented; a size cap keeps it tractable. |
 | Kennington Netlib problems | Out | Distributed separately (ftp), larger; not needed for the headline. |
-| HiGHS HiPO interior point | Out | The PyPI wheel of highspy 1.15.1 is built without BLAS/METIS; requesting `solver="hipo"` fails ("features are unavailable: amd, blas, metis, rcm"). Recorded as a finding about the wheel, not the solver. |
+| HiGHS HiPO interior point | Out of v0.1 | The PyPI wheel of highspy 1.15.1 was built without BLAS/METIS; requesting `solver="hipo"` failed ("features are unavailable: amd, blas, metis, rcm"). The 1.16.0 wheel runs it (item 30); adding it is a design change not yet made. |
 | Clarabel | Optional (S1), direct `clarabel` API only | It is a conic IPM; through cvxpy the timing would include cvxpy canonicalisation. Its tolerance semantics differ again. |
 | Multi-threaded runs, memory profiling | Out | Single thread per solve is the only fair setting with 3 concurrent workers on a shared machine. |
 | Presolve on/off, crossover on/off ablations | Out | Default settings, with the tolerance alignment of section 4.3, are the configurations. |
@@ -50,17 +50,17 @@ Versions are pinned exactly in `pyproject.toml`; `uv.lock` pins the rest.
 
 | Config id | Library (PyPI, version, licence) | Algorithm | Seed control |
 |---|---|---|---|
-| `highs-dsimplex` | highspy 1.15.1 (MIT) | HiGHS dual revised simplex (`solver="simplex"`) | `random_seed` |
-| `highs-ipx` | highspy 1.15.1 | IPX interior point with crossover (`solver="ipx"`, `run_crossover="on"`) | `random_seed` |
-| `highs-pdlp` | highspy 1.15.1 | cuPDLP-C port running on CPU (`solver="pdlp"`) | none (deterministic) |
-| `highs-hipdlp` | highspy 1.15.1 | HiPDLP, CPU (`solver="hipdlp"`; Halpern restarts, PID step) | none |
+| `highs-dsimplex` | highspy 1.16.0 (MIT) | HiGHS dual revised simplex (`solver="simplex"`) | `random_seed` |
+| `highs-ipx` | highspy 1.16.0 | IPX interior point with crossover (`solver="ipx"`, `run_crossover="on"`) | `random_seed` |
+| `highs-pdlp` | highspy 1.16.0 | cuPDLP-C port running on CPU (`solver="pdlp"`) | none (deterministic) |
+| `highs-hipdlp` | highspy 1.16.0 | HiPDLP, CPU (`solver="hipdlp"`; Halpern restarts, PID step) | none |
 | `ortools-glop` | ortools 9.15.6755 (Apache-2.0) | GLOP primal/dual simplex (model_builder `Solver("glop")`) | `random_seed` |
 | `ortools-pdlp` | ortools 9.15.6755 | PDLP (model_builder `Solver("pdlp")`) | none |
 | `scip-soplex` | PySCIPOpt 6.3.0 (MIT); SCIP 10.0, SoPlex 8.0.2 bundled | SoPlex simplex via SCIP root LP, presolve/heuristics/separation/propagation off | `randomization/randomseedshift`, `randomization/lpseed` |
 
 Notes recorded from probing the wheels on 2026-10-24 (re-check in M3):
 
-- In highspy 1.15.1, `solver="ipm"` currently dispatches to IPX; we name `ipx` explicitly.
+- In highspy 1.15.1, `solver="ipm"` dispatched to IPX; we name `ipx` explicitly.
 - `hipdlp` logs "performance may be disappointing" on CPU and, on a 2x2 LP, declared
   "Optimal" with a relative primal infeasibility of 1.05x its tolerance. This is exactly what
   the verifier exists to catch; it is a status-policy observation, not a bug claim.
@@ -245,7 +245,7 @@ from the records into the report.
 |---|---|
 | highs-dsimplex | defaults (`primal/dual_feasibility_tolerance` 1e-7 are already tighter) |
 | highs-ipx | defaults (`ipm_optimality_tolerance` 1e-8, crossover on) |
-| highs-pdlp, highs-hipdlp | `kkt_tolerance = 1e-6` (library default 1e-7; see section 12, item 6); `highs-pdlp` gets no `time_limit` (enforced by the runner, item 14) |
+| highs-pdlp, highs-hipdlp | `kkt_tolerance = 1e-6` (library default 1e-7; see section 12, item 6) |
 | ortools-glop | defaults (`primal/dual_feasibility_tolerance` 1e-8), `random_seed` |
 | ortools-pdlp | `eps_optimal_absolute = eps_optimal_relative = 1e-6`, `optimality_norm: L_INF` |
 | scip-soplex | defaults (`numerics/feastol` 1e-6, `dualfeastol` 1e-7); at 1e-8 both set to 1e-8; presolving, heuristics, separation, propagation and symmetry handling off (section 12, item 12) |
@@ -651,8 +651,9 @@ Recorded as they were made during implementation.
     `time_limit + 5 s` (`EXTERNAL_TL_GRACE_S`) and records TIME_LIMIT, and a solve that ends
     after the limit is scored TIME_LIMIT. `highs-hipdlp` is not affected and keeps the
     in-library limit. HiGHS pull request #3450 (merged 2026-10-22, released in HiGHS 1.16.0
-    on 2026-11-11, not yet pinned here) fixes the cause: cuPDLP-C's clock returned
-    milliseconds on Windows.
+    on 2026-11-11) fixes the cause: cuPDLP-C's clock returned milliseconds on Windows.
+    **Superseded by item 30:** with highspy 1.16.0 the repro ends Optimal under every
+    limit, so the workaround is gone and `highs-pdlp` keeps its in-library limit.
 15. **(M7) Timer resolution on Windows.** Process CPU time advances in steps of 1/64 s
     (15.6 ms) on the study machine, although `time.get_clock_info` reports 1e-7. Effects:
     performance-profile ratios use times floored at 0.02 s (`report.PROFILE_FLOOR_S`), so
@@ -791,3 +792,16 @@ Recorded as they were made during implementation.
     does not count toward m. Before, all-NaN came back as adjusted 0.0, so a broken test read
     as significant, and a NaN elsewhere took the largest adjusted value of the others. Inputs
     without NaN give the same result, so the published numbers stand.
+30. **(2026-11-13) highspy 1.16.0.** The pin moved from 1.15.1 to 1.16.0 (HiGHS 1.16.0,
+    git f3f113d), which contains HiGHS #3450. On Windows the time-limit repro
+    (`docs/repros/highs-pdlp-time-limit.md`) now ends Optimal after 4960 PDLP iterations
+    under limits of 10, 60 and 1000 s, as with no limit. The external limit of item 14
+    (`EXTERNAL_TIME_LIMIT`, the runner's TL + 5 s kill and the adapter's late-answer rule)
+    is removed; `highs-pdlp` gets `time_limit` like every other HiGHS config, and a worker
+    is killed only at the hard deadline. Two behaviour changes surfaced in the adapter
+    tests: on the 2x2 LP with `x0 + x1 <= 1`, `x0 + x1 >= 2`, HiGHS 1.15.1 presolve declared
+    Infeasible before PDLP ran, while 1.16.0 presolve does not reduce it, so cuPDLP-C
+    reports "Primal infeasible or unbounded" (INF_OR_UNBD) and HiPDLP runs to the time
+    limit; and the 1.16.0 wheel runs HiPO (`solver="hipo"`), which 1.15.1 refused. The
+    published quick results (`docs/results/quick/`) were produced with 1.15.1 and are not
+    re-run under 1.16.0.

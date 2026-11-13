@@ -33,7 +33,7 @@ classifiers = [
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
-    "highspy==1.15.1",
+    "highspy==1.16.0",
     "ortools==9.15.6755",
     "pyscipopt==6.3.0",
 ]

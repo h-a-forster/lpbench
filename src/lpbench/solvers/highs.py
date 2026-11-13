@@ -8,7 +8,6 @@ from typing import Any
 import numpy as np
 
 from lpbench.solvers.base import (
-    EXTERNAL_TIME_LIMIT,
     ConfigurationError,
     SolveRequest,
     SolveResult,
@@ -56,11 +55,8 @@ class HighsAdapter:
             "solver": _SOLVER[self.config],
             "threads": 1,
             "random_seed": int(seed) % 2_147_483_647,
+            "time_limit": float(time_limit_s),
         }
-        if self.config not in EXTERNAL_TIME_LIMIT:
-            # highs-pdlp (cuPDLP-C) stops far too early with any finite time_limit in
-            # highspy 1.15.1 on Windows; the runner enforces its limit (DESIGN 12, item 14)
-            opts["time_limit"] = float(time_limit_s)
         if self.config == "highs-dsimplex":
             opts["simplex_strategy"] = 1  # dual simplex, serial
         if self.config in ("highs-dsimplex", "highs-ipx") and eps < _DEFAULT_FEAS:
@@ -102,8 +98,6 @@ class HighsAdapter:
         status = _status_map().get(ms, SolverStatus.ERROR)
         if run_status == highspy.HighsStatus.kError and status == SolverStatus.OPTIMAL:
             status = SolverStatus.ERROR
-        if self.config in EXTERNAL_TIME_LIMIT and t.cpu > req.time_limit_s:
-            status = SolverStatus.TIME_LIMIT  # finished, but after the limit
         info = h.getInfo()
         iters = {
             "simplex": int(info.simplex_iteration_count),

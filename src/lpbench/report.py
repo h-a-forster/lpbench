@@ -175,10 +175,10 @@ def matrix(
 def over_limit(r: dict[str, Any], time_limit: float) -> bool:
     """True if the solve took longer than the time limit in wall time.
 
-    Every config except ``highs-pdlp`` stops on an in-library wall-clock limit, so it cannot
-    return a solution after ``time_limit`` s of wall time; ``highs-pdlp`` is stopped
-    externally at ``time_limit + 5 s``. Applying the same wall budget to every config keeps
-    the budgets equal (a late answer counts as TIME_LIMIT).
+    Every config stops on an in-library limit, which can still overshoot a little; runs
+    made with highspy 1.15.1 stopped ``highs-pdlp`` externally at ``time_limit + 5 s``
+    (DESIGN 12, items 14 and 30). Applying the same wall budget to every config keeps the
+    budgets equal (a late answer counts as TIME_LIMIT).
     """
     w = r.get("solve_wall_s")
     return w is not None and float(w) > time_limit

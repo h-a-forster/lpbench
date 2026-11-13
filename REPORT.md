@@ -234,11 +234,12 @@ there only because it compared a Netlib-only ranking with the all-instance one.
    The pilot showed 26 of 30 units "timing out" within 0.26 s. A standalone reproduction
    that uses no lpbench code is in
    [docs/repros/highs-pdlp-time-limit.md](docs/repros/highs-pdlp-time-limit.md). It is
-   reproduced on one platform only. The cause is fixed in HiGHS 1.16.0, released on
-   2026-11-11 after this study; lpbench still pins 1.15.1 and has not re-tested
-   ([docs/upstream/](docs/upstream/highs-pdlp-time-limit.md)). lpbench enforces
-   this config's limit externally (TL + 5 s, then TIME_LIMIT; an answer after 10 s of wall
-   time is scored as TIME_LIMIT, like every other config).
+   reproduced on one platform only. In this study lpbench enforced this config's limit
+   externally (TL + 5 s, then TIME_LIMIT; an answer after 10 s of wall time is scored as
+   TIME_LIMIT, like every other config). The cause is fixed in HiGHS 1.16.0, released on
+   2026-11-11 after this study; the reproduction ends Optimal under every limit with it
+   ([docs/upstream/](docs/upstream/highs-pdlp-time-limit.md)). lpbench now pins 1.16.0 and
+   dropped the external limit; this report's numbers are from 1.15.1.
 2. **SCIP adds symmetry-breaking constraints to pure LPs** even with presolving off, which
    changes the LP and the length of its dual vector. This is a MIP-oriented default, not a
    bug; lpbench sets `misc/usesymmetry = 0` (DESIGN 12, item 12).

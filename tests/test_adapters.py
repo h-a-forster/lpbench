@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import sys
 import time
 from pathlib import Path
 
@@ -78,6 +77,10 @@ EXPECTED_INFEASIBLE["ortools-glop"] = {SolverStatus.INF_OR_UNBD}
 EXPECTED_UNBOUNDED = {c: {SolverStatus.UNBOUNDED} for c in CONFIG_IDS}
 EXPECTED_UNBOUNDED["ortools-glop"] = {SolverStatus.INF_OR_UNBD}
 EXPECTED_UNBOUNDED["ortools-pdlp"] = {SolverStatus.UNBOUNDED, SolverStatus.NUMERICAL}
+# HiGHS 1.16.0 presolve no longer detects this infeasibility before PDLP: cuPDLP-C reports
+# "Primal infeasible or unbounded" and HiPDLP runs to the time limit (DESIGN 12, item 30).
+EXPECTED_INFEASIBLE["highs-pdlp"] = {SolverStatus.INF_OR_UNBD}
+EXPECTED_INFEASIBLE["highs-hipdlp"] = {SolverStatus.TIME_LIMIT}
 
 
 @pytest.mark.parametrize("config", CONFIG_IDS)
@@ -335,40 +338,30 @@ def test_time_limit_is_respected(config: str) -> None:
     assert elapsed < 60.0
 
 
-def test_highs_pdlp_time_limit_is_external() -> None:
-    """highs-pdlp gets no in-library time limit; the runner enforces it (DESIGN 12, item 14)."""
-    from lpbench.solvers.base import EXTERNAL_TIME_LIMIT
-
-    assert "highs-pdlp" in EXTERNAL_TIME_LIMIT
-    assert "time_limit" not in make_adapter("highs-pdlp").options(1e-6, 10.0, 1)
-    assert make_adapter("highs-hipdlp").options(1e-6, 10.0, 1)["time_limit"] == 10.0
+def test_highs_pdlp_keeps_its_in_library_time_limit() -> None:
+    """Every HiGHS config passes ``time_limit`` to the library (DESIGN 12, item 14)."""
+    for cfg in ("highs-dsimplex", "highs-ipx", "highs-pdlp", "highs-hipdlp"):
+        assert make_adapter(cfg).options(1e-6, 10.0, 1)["time_limit"] == 10.0
 
 
 @pytest.mark.slow
-def test_highs_pdlp_finishing_after_the_limit_is_time_limit() -> None:
-    lp, mps = _netlib_cached("DFL001")
+def test_highs_pdlp_short_time_limit_is_time_limit() -> None:
+    _, mps = _netlib_cached("DFL001")
     res = make_adapter("highs-pdlp").solve(SolveRequest("highs-pdlp", mps, 1e-4, 0.05, seed=1))
-    assert res.solve_cpu_s > 0.05 and res.status == SolverStatus.TIME_LIMIT
+    assert res.status == SolverStatus.TIME_LIMIT, res.raw_status
 
 
-@pytest.mark.slow
-@pytest.mark.skipif(sys.platform != "win32", reason="the upstream cause is Windows-only")
-def test_upstream_highs_pdlp_time_limit_stops_early() -> None:
-    """Upstream behaviour behind EXTERNAL_TIME_LIMIT (docs/repros/highs-pdlp-time-limit.md):
-    with time_limit = 10 s, raw HiGHS PDLP reports "Time limit reached" well under 10 s. If
-    this test fails, the behaviour has changed and the workaround should be revisited."""
-    import highspy
-
-    _, mps = _netlib_cached("AGG2")
-    h = highspy.Highs()
-    h.setOptionValue("output_flag", False)
-    h.readModel(str(mps))
-    h.setOptionValue("solver", "pdlp")
-    h.setOptionValue("time_limit", 10.0)
-    t0 = time.perf_counter()
-    h.run()
-    elapsed = time.perf_counter() - t0
-    assert h.getModelStatus() == highspy.HighsModelStatus.kTimeLimit and elapsed < 2.0
+def test_highs_pdlp_finite_time_limit_does_not_stop_early(tmp_path: Path) -> None:
+    """highspy 1.15.1 on Windows stopped PDLP with "Time limit reached" after about 0.02 s
+    of a 10 s limit on this LP (docs/repros/highs-pdlp-time-limit.md); 1.16.0 (HiGHS #3450)
+    solves it to optimality under the same limit."""
+    rng = np.random.default_rng(0)
+    m, n = 300, 400
+    A = rng.random((m, n)) * (rng.random((m, n)) < 0.05)
+    rhs = A @ rng.random(n) + 1.0
+    lp = make_lp("pdlp_tl", A, -rng.random(n), [-INF] * m, rhs, [0.0] * n, [2.0] * n)
+    res = _solve("highs-pdlp", lp, tmp_path, tl=10)
+    assert res.status == SolverStatus.OPTIMAL, res.raw_status
 
 
 @pytest.mark.parametrize("order", [0, 1])

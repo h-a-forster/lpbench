@@ -1,11 +1,23 @@
 # HiGHS PDLP stops early when `time_limit` is finite
 
-**Status:** reproduced on one machine and one platform (Windows 11, x86-64, Python 3.13,
-highspy 1.15.1 wheel), last on 2026-11-06 with highspy 1.15.1, the version lpbench pins.
-It has not been checked on Linux or macOS. The cause is fixed upstream (HiGHS pull request
-#3450, merged 2026-10-22, released in HiGHS 1.16.0 on 2026-11-11; not yet re-run here); see
-[docs/upstream/highs-pdlp-time-limit.md](../upstream/highs-pdlp-time-limit.md). lpbench
-works around it (DESIGN 12, item 14).
+**Status: fixed in highspy 1.16.0.** Reproduced on one machine and one platform (Windows 11,
+x86-64, Python 3.13, highspy 1.15.1 wheel), last on 2026-11-06. It has not been checked on
+Linux or macOS. The cause is fixed upstream (HiGHS pull request #3450, merged 2026-10-22,
+released in HiGHS 1.16.0 on 2026-11-11); see
+[docs/upstream/highs-pdlp-time-limit.md](../upstream/highs-pdlp-time-limit.md). Re-run on
+2026-11-13 on the same machine with highspy 1.16.0, which lpbench now pins, every limit
+gives the no-limit result:
+
+```
+highspy 1.16.0
+time_limit=   None: Optimal              wall   0.110 s  pdlp iterations 4960
+time_limit=   10.0: Optimal              wall   0.096 s  pdlp iterations 4960
+time_limit=   60.0: Optimal              wall   0.096 s  pdlp iterations 4960
+time_limit= 1000.0: Optimal              wall   0.088 s  pdlp iterations 4960
+```
+
+lpbench's workaround (DESIGN 12, item 14) is removed (item 30). The rest of this page
+describes the 1.15.1 behaviour.
 
 ## Observation
 
@@ -40,11 +52,11 @@ time_limit= 1000.0: Optimal              wall   0.194 s  pdlp iterations 4960
 - The only option that changes between runs is `time_limit`. The lpbench adapter showed the
   same thing on Netlib AGG2 read from MPS: "Time limit reached" after 0.02 s with
   `time_limit = 10`, "Optimal" after 0.08 s without it.
-- `tests/test_adapters.py::test_upstream_highs_pdlp_time_limit_stops_early` (slow, Windows) keeps
-  checking the behaviour. It will fail once the behaviour changes, which is the cue to
-  remove the workaround.
+- `tests/test_adapters.py::test_highs_pdlp_finite_time_limit_does_not_stop_early` solves
+  the LP of the reproduction through the adapter with a 10 s limit; it fails on 1.15.1 and
+  passes on 1.16.0.
 
-## Effect on lpbench and the workaround
+## Effect on lpbench and the workaround (until highspy 1.16.0)
 
 Before the workaround, 26 of the 30 `highs-pdlp` units in the pilot ended as TIME_LIMIT
 within 0.26 s. A benchmark run that way would have measured the bug, not the solver. Now

@@ -1,11 +1,12 @@
 # Upstream: HiGHS PDLP stops early with a finite `time_limit`
 
-**Status (2026-11-13): fixed in HiGHS 1.16.0 (released 2026-11-11, contains #3450); not yet
-re-tested here, lpbench still pins highspy 1.15.1. No new report is needed.**
+**Status (2026-11-13): fixed in HiGHS 1.16.0 (released 2026-11-11, contains #3450) and
+re-tested here: lpbench pins highspy 1.16.0 and the reproduction ends Optimal under every
+limit (Windows). The workaround is removed (DESIGN 12, item 30). No new report is needed.**
 
 - Verified on Windows only (Windows 11, x86-64, Python 3.13, highspy 1.15.1 wheel). Not
   checked on Linux or macOS.
-- With highspy 1.15.1 (2026-07-02), the version lpbench pins, the reproduction in
+- With highspy 1.15.1 (2026-07-02), the version lpbench pinned until 2026-11-13, the reproduction in
   [docs/repros/highs-pdlp-time-limit.md](../repros/highs-pdlp-time-limit.md) still shows
   the early stop. highspy 1.16.0 reached PyPI on 2026-11-11.
 - HiGHS pull request [#3450](https://github.com/ERGO-Code/HiGHS/pull/3450), "Fix cuPDLP-C
