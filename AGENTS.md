@@ -79,7 +79,7 @@ uv run ruff format --check .
 On Windows the fast suite took 92 s on a quiet machine (2026-11-06) and timed out at 470 s
 on a loaded one (2026-10-30): each runner test spawns one worker pool per solver family it uses.
 
-CI (`.github/workflows/ci.yml`) runs on `pull_request` and `workflow_dispatch` only:
+CI (`.github/workflows/ci.yml`) runs on pushes to `main`, `pull_request` and `workflow_dispatch`:
 ubuntu py3.11, ubuntu py3.13, windows py3.13, plus a lint job.
 
 ## How to run the study
@@ -157,7 +157,7 @@ means some units could not be prepared (no record written; fetch/prepare, then r
   summary.md, units.csv, performance_profiles.svg; byte-identical on regeneration). Quick
   study run: 2388 units in 35.9 min, one attempt, no CONFIG_ERROR; tables committed in
   `docs/results/quick/`. Tests: `tests/test_report.py`.
-- **Done (M8):** `REPORT.md`, README, CHANGELOG 0.1.0 (version bumped, not tagged).
+- **Done (M8):** `REPORT.md`, README, CHANGELOG 0.1.0 (tagged `v0.1.0` on 2026-11-08).
 - **Done (review fixes, 2026-10-24):** SCIP singleton-row dual bug (the `nu25-pr12`
   "unverified optimum" was ours; DESIGN 12, item 17), prepare failures no longer
   checkpointed, seed in permuted MPS names, report completeness warning, raw-time GSDs on
@@ -168,7 +168,7 @@ means some units could not be prepared (no record written; fetch/prepare, then r
   items 17-22). Reference pass re-run for SCIP (now 114/114 consensus), quick study re-run
   in full (2388 units, 21.4 min, one attempt), `REPORT.md` rewritten. Rejected review
   points: none.
-- **Done (release prep, 2026-10-30):** CHANGELOG 0.1.0 dated (no tag yet), release notes
+- **Done (release prep, 2026-10-30):** CHANGELOG 0.1.0 dated, release notes
   in `docs/release-notes-0.1.0.md`, PDLP repro re-checked on highspy 1.15.1 and the
   upstream status in `docs/upstream/`, CI actions pinned to SHAs. The run-time projection
   was re-measured: nearest neighbours do not beat the tertile means (DESIGN 12, item 23).

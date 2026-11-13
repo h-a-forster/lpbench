@@ -650,8 +650,9 @@ Recorded as they were made during implementation.
     no longer passes `time_limit` for this config. The runner kills the worker at
     `time_limit + 5 s` (`EXTERNAL_TL_GRACE_S`) and records TIME_LIMIT, and a solve that ends
     after the limit is scored TIME_LIMIT. `highs-hipdlp` is not affected and keeps the
-    in-library limit. HiGHS pull request #3450 (merged 2026-10-22, unreleased as of
-    highspy 1.15.1) fixes the cause: cuPDLP-C's clock returned milliseconds on Windows.
+    in-library limit. HiGHS pull request #3450 (merged 2026-10-22, released in HiGHS 1.16.0
+    on 2026-11-11, not yet pinned here) fixes the cause: cuPDLP-C's clock returned
+    milliseconds on Windows.
 15. **(M7) Timer resolution on Windows.** Process CPU time advances in steps of 1/64 s
     (15.6 ms) on the study machine, although `time.get_clock_info` reports 1e-7. Effects:
     performance-profile ratios use times floored at 0.02 s (`report.PROFILE_FLOOR_S`), so
