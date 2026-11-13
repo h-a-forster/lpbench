@@ -273,8 +273,12 @@ there only because it compared a Netlib-only ranking with the all-instance one.
   case and the componentwise diagnostic show. The reference objective is what catches
   such answers, so the KKT check is not a sufficient oracle on its own; in this run every
   instance has a reference.
-- **The MIPLIB references are partly circular.** They are consensus values of three of the
-  benchmarked configs (at 1e-9), so they cannot catch an error those three share. Whether
+- **The MIPLIB references in this run are partly circular.** They are consensus values of
+  three of the benchmarked configs (at 1e-9), so they cannot catch an error those three
+  share. Since 2026-11-13 lpbench uses exact optima certified with certkkt for 113 of the
+  114 instances (DESIGN 12, item 31): 60 values differ from the consensus by at most
+  3.6e-13 relative and re-scoring this run's 3246 MIPLIB verdicts with them changes none.
+  Whether
   a config finishes the 60 s reference solve depends on machine load: after the SCIP fix
   the reference pass was re-run for `scip-soplex`, which this time finished `dano3_3` and
   `dano3_5` (28 s; before, it was stopped at 59 s wall with 52 s of CPU), so these two now
@@ -297,6 +301,7 @@ uv sync
 uv run lpbench fetch --config quick
 uv run lpbench prepare --config quick
 uv run lpbench reference --config quick       # MIPLIB consensus values (about 6 min here)
+uv run lpbench exact --config quick           # exact references (about 1 h here)
 uv run python scripts/run_study.py --config pilot --out runs/pilot
 uv run python scripts/run_study.py --config quick --out runs/quick --pilot runs/pilot
 uv run lpbench report runs/quick --publish docs/results/quick

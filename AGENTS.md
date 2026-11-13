@@ -43,7 +43,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 
 | Path | Role | State |
 |---|---|---|
-| `src/lpbench/cli.py` | `versions`, `fetch`, `prepare`, `reference`, `plan`, `run`, `status`, `report` | done |
+| `src/lpbench/cli.py` | `versions`, `fetch`, `prepare`, `reference`, `exact`, `plan`, `run`, `status`, `report` | done |
 | `src/lpbench/versions.py` | library versions, SCIP/HiGHS lib versions, platform, git SHA | done |
 | `src/lpbench/config.py` | StudyConfig, validation, config hash | done (M2; blocks used from M4) |
 | `src/lpbench/lpmodel.py` | CanonicalLP, HiGHS extraction, permutations, exact free-MPS writer | done (M1) |
@@ -58,7 +58,9 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 | `src/lpbench/worker.py`, `runner.py` | persistent workers, hard deadlines, checkpoints | done (M4) |
 | `src/lpbench/planning.py` | unit counts, worst case, pilot-based LPT projection | done (M4) |
 | `scripts/run_study.py` | resume-on-failure wrapper, scrubbed `wrapper.log` | done (M4) |
-| `src/lpbench/reference.py` | consensus references for MIPLIB relaxations | done (M5) |
+| `src/lpbench/reference.py` | consensus references for MIPLIB relaxations (fallback) | done (M5) |
+| `src/lpbench/exact.py` | exact optima: HiGHS basis, exact pivots, certkkt certificate; `lpbench exact` | done (DESIGN 6.3) |
+| `scripts/compare_references.py` | re-scores a run's MIPLIB verdicts with the current references | done |
 | `src/lpbench/stats.py` | SGM, bootstrap, profiles with bands, ranks, Holm | done (M6) |
 | `src/lpbench/report.py` | tables, figures, ranking sensitivity | done (M7) |
 | `configs/pilot.toml`, `configs/quick.toml`, `configs/full.toml` | study configs | done (full not run) |
@@ -88,6 +90,7 @@ ubuntu py3.11, ubuntu py3.13, windows py3.13, plus a lint job.
 uv run lpbench fetch --config quick
 uv run lpbench prepare --config quick
 uv run lpbench reference --config quick
+uv run lpbench exact --config quick      # exact references; resumable, runs/quick-exact
 uv run python scripts/run_study.py --config pilot --out runs/pilot   # needed for the projection
 uv run lpbench plan --config quick --pilot runs/pilot
 uv run python scripts/run_study.py --config quick --out runs/quick --pilot runs/pilot   # < 45 min

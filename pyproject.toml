@@ -36,6 +36,8 @@ dependencies = [
     "highspy==1.16.0",
     "ortools==9.15.6755",
     "pyscipopt==6.3.0",
+    # Exact rational certificates for the reference optima (DESIGN 6.3); pinned to a commit.
+    "certkkt @ git+https://github.com/h-a-forster/certkkt@56eacb10fedc71e5b31c6084eb393eac3e4024cb",
 ]
 
 [project.optional-dependencies]
@@ -52,6 +54,9 @@ lpbench = "lpbench.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "ruff>=0.6", "matplotlib>=3.8"]
+
+[tool.hatch.metadata]
+allow-direct-references = true  # certkkt is not on PyPI
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/lpbench"]

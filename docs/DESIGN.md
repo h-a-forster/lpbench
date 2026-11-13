@@ -112,7 +112,7 @@ Notes recorded from probing the wheels on 2026-10-24 (re-check in M3):
   (name, rows, cols, nnz, sha256 and bytes filled on first verified download). The HTML table
   is parsed once by that script, never at run time.
 - Reference objectives: MIPLIB publishes MIP optima, not LP relaxation values. Section 6.3
-  defines a consensus reference.
+  defines the exact reference and the consensus fallback.
 - Licence: the MIPLIB site states no licence for the 2017 instances (only "(c) ZIB"); the
   MIPLIB 2024 call publishes new instances under CC BY-SA 4.0. Because redistribution of 2017
   instances is unclear, lpbench commits no instance data, only names, sizes, checksums and
@@ -356,7 +356,26 @@ infeasible or unbounded; any disagreement is reported as a finding to investigat
   and `ortools-glop` verify all 30 subset instances against the reference in every
   permutation, `scip-soplex` 29 (it times out on PILOT87 in every order).
 
-### 6.3 Consensus reference for MIPLIB relaxations
+### 6.3 Reference objectives for MIPLIB relaxations: exact, else consensus
+
+**Exact (since 2026-11-13, item 31).** `lpbench exact --config quick` computes, for every
+instance of the config (Netlib and MIPLIB), the exact optimum of the LP the solvers receive:
+each float of the canonical model is read as the rational it denotes. HiGHS dual simplex
+(tolerances 1e-9) only proposes a basis. `src/lpbench/exact.py` solves the basis systems in
+rational arithmetic (certkkt's iterative refinement with rational reconstruction, else exact
+elimination), and when the float basis is optimal only within tolerance it pivots in exact
+arithmetic (a cost-shifted dual simplex to primal feasibility, then the primal simplex, both
+with the smallest-index rule) until the basis is exactly optimal. certkkt (pinned git
+dependency) then certifies the primal-dual pair exactly; only a certificate of level
+`optimal` (or `bounded` with relative width at most 1e-12) becomes a reference. If the exact
+work fails (600 s budget per instance, 200 pivots), certkkt's repairs run on the float pair
+and the level reached is recorded. Results are committed in
+`src/lpbench/data/exact_reference.csv` with the rigorous bounds, the exact pivots and the
+relative difference from the previous reference (Koch 2004 for Netlib, consensus for
+MIPLIB). MIPLIB instances use the exact value where there is one; Netlib keeps Koch's
+values, which the exact values confirm (a test requires agreement to 1e-9 relative).
+
+**Consensus (fallback).**
 
 `lpbench reference --config quick` runs, for the miplib suite, the three independent simplex implementations
 (`highs-dsimplex`, `ortools-glop`, `scip-soplex`) on the identity ordering at epsilon = 1e-9
@@ -370,6 +389,8 @@ consensus keep the KKT check only, and the report counts them. The KKT certifica
 primary oracle: a primal-feasible x and dual-feasible (y, z) with a small gap bound the
 optimum from both sides regardless of which solver produced them. The consensus value is a
 secondary check, and its partial circularity (it uses benchmarked libraries) is stated.
+The exact reference removes that circularity where it exists; the consensus remains the
+reference only for instances without an exact certificate.
 
 ### 6.4 Adapters
 
@@ -805,3 +826,21 @@ Recorded as they were made during implementation.
     limit; and the 1.16.0 wheel runs HiPO (`solver="hipo"`), which 1.15.1 refused. The
     published quick results (`docs/results/quick/`) were produced with 1.15.1 and are not
     re-run under 1.16.0.
+31. **(2026-11-13) Exact references (section 6.3).** The audit of 2026-11-12 pointed out
+    that the MIPLIB references were a consensus of the solvers under test. SoPlex's exact
+    mode is not available from PyPI (no SoPlex package; the PySCIPOpt 6.3.0 wheel reports
+    "SCIP was compiled without exact solve support"), so certkkt, pinned to commit
+    `56eacb1`, is the exact verifier and `lpbench exact` the pass. Quick instances: 113 of
+    114 MIPLIB relaxations and 85 of 92 Netlib LPs certified `optimal` (median a few
+    seconds; 25FV47 and GANGES needed about 330 s). Not certified: `neos-3656078-kumeu`
+    (no exactly feasible basis within 200 pivots), DFL001, PILOT87 and WOOD1P (600 s
+    budget). PILOT.JA, PILOTNOV, SCORPION and SIERRA are infeasible in exact arithmetic
+    once their decimal data are rounded to float64: a combination of equality rows and
+    fixed bounds sums to about 3.6e-15 instead of 0 (Farkas certificate, re-checked with
+    `fractions.Fraction`); their Koch values, for the decimal data, stay. The 85 Netlib
+    exact optima agree with Koch to at most 2.3e-14 relative. Of the 113 MIPLIB values, 60
+    differ from the consensus, all by at most 3.6e-13 relative (`milo-v12-6-r2-40-1`), and
+    no verdict of the quick run changes: `scripts/compare_references.py runs/quick`
+    re-scores its 1141 MIPLIB records (3246 verdicts at 1e-4, 1e-5, 1e-6, 1e-8) and finds
+    0 flips. The quick results are therefore unchanged; MIPLIB units of new runs carry
+    `reference_source = "exact"`.

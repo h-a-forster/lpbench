@@ -17,6 +17,7 @@ DATA = Path(__file__).resolve().parent / "data"
 NETLIB_REFERENCE = DATA / "netlib_reference.csv"
 MIPLIB_MANIFEST = DATA / "miplib_benchmark.csv"
 MIPLIB_REFERENCE = DATA / "miplib_reference.csv"
+EXACT_REFERENCE = DATA / "exact_reference.csv"
 CHECKSUMS = DATA / "checksums.csv"
 
 NETLIB_SITE = "https://netlib.org/lp/data"
@@ -104,11 +105,16 @@ def netlib_instances(exclude: tuple[str, ...] = ()) -> list[Instance]:
 
 
 def miplib_reference_values() -> dict[str, tuple[float, str]]:
-    """Consensus LP-relaxation references (canonical sense) by instance name."""
+    """LP-relaxation references (canonical sense) and their source by instance name: the
+    exact certified optimum where there is one (``exact_reference.csv``), else the
+    consensus of the three simplex configs (``miplib_reference.csv``; DESIGN 6.3)."""
     out = {}
     for r in _read_csv(MIPLIB_REFERENCE):
         if r.get("reference"):
-            out[r["name"]] = (float(r["reference"]), r.get("agreed", ""))
+            out[r["name"]] = (float(r["reference"]), "consensus")
+    for r in _read_csv(EXACT_REFERENCE):
+        if r["suite"] == "miplib" and r.get("reference"):
+            out[r["name"]] = (float(r["reference"]), "exact")
     return out
 
 
@@ -130,7 +136,7 @@ def miplib_instances(max_nnz: int) -> list[Instance]:
                 cols=int(r["cols"]),
                 nnz=int(r["nnz"]),
                 reference=ref[0] if ref else None,
-                reference_source="consensus" if ref else "",
+                reference_source=ref[1] if ref else "",
             )
         )
     return out
@@ -140,8 +146,8 @@ def canonical_reference(inst: Instance, c0: float, maximize_flipped: bool) -> fl
     """Reference objective in the canonical (minimisation, constant-included) sense.
 
     Netlib's published optima (readme and Koch 2004) exclude the objective-row RHS constant
-    (only E226 has one: HiGHS reads it as c0 = 7.113), so ``c0`` is added. MIPLIB consensus
-    values are computed and stored in the canonical sense already.
+    (only E226 has one: HiGHS reads it as c0 = 7.113), so ``c0`` is added. MIPLIB exact and
+    consensus values are computed and stored in the canonical sense already.
     """
     if inst.reference is None:
         return None

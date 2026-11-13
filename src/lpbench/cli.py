@@ -185,6 +185,47 @@ def _cmd_reference(args: argparse.Namespace) -> int:
     return 0
 
 
+def _prior_references(insts: list) -> dict[str, tuple[str, float | None]]:  # type: ignore[type-arg]
+    """Canonical-sense references other than the exact ones, for the comparison column."""
+    from lpbench.instances import MIPLIB_REFERENCE, _read_csv, canonical_reference
+    from lpbench.lpmodel import load_npz
+
+    consensus = {r["name"]: float(r["reference"]) for r in _read_csv(MIPLIB_REFERENCE)
+                 if r.get("reference")}  # fmt: skip
+    out: dict[str, tuple[str, float | None]] = {}
+    for i in insts:
+        if i.suite == "miplib":
+            out[i.id] = ("consensus", consensus.get(i.name))
+        elif i.reference is not None and i.canonical_path().exists():
+            lp = load_npz(i.canonical_path())
+            out[i.id] = (i.reference_source, canonical_reference(i, lp.c0, lp.maximize_flipped))
+    return out
+
+
+def _cmd_exact(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from lpbench.config import load_config
+    from lpbench.exact import run_exact, write_exact_csv
+    from lpbench.instances import all_instances
+    from lpbench.runner import file_logger
+
+    cfg = load_config(args.config)
+    insts = [i for i in all_instances(cfg) if args.suite in (None, i.suite)]
+    out = Path(args.out or f"runs/{cfg.name}-exact")
+    log = file_logger(out / "progress.log")
+    recs, missing = run_exact(insts, out, workers=args.workers or min(cfg.workers, 3), log=log)
+    if missing:  # an incomplete pass must not change the committed values
+        log(f"{len(missing)} instances not prepared (run fetch and prepare); table unchanged")
+        return 5
+    write_exact_csv(recs, _prior_references(insts))
+    counts: dict[str, int] = {}
+    for r in recs.values():
+        counts[str(r.get("level"))] = counts.get(str(r.get("level")), 0) + 1
+    log("exact pass: " + ", ".join(f"{k} {v}" for k, v in sorted(counts.items())))
+    return 0
+
+
 def _cmd_report(args: argparse.Namespace) -> int:
     from pathlib import Path
 
@@ -264,6 +305,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_ref.add_argument("--config", default="quick", help="config name or path")
     p_ref.add_argument("--out", help="run directory (default runs/<config>-reference)")
     p_ref.set_defaults(func=_cmd_reference)
+
+    p_exact = sub.add_parser("exact", help="exact certified optima (certkkt) for the references")
+    p_exact.add_argument("--config", default="quick", help="config name or path")
+    p_exact.add_argument("--suite", choices=["netlib", "miplib"])
+    p_exact.add_argument("--out", help="run directory (default runs/<config>-exact)")
+    p_exact.add_argument("--workers", type=_positive_int, help="processes (at most 3 by default)")
+    p_exact.set_defaults(func=_cmd_exact)
 
     p_status = sub.add_parser("status", help="progress of a run directory")
     p_status.add_argument("run_dir")

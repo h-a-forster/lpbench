@@ -13,8 +13,9 @@ instance, and take each solver's "optimal" status on trust. lpbench instead:
 
 - **verifies every claimed optimum** with its own code on the original problem data:
   relative primal and dual residuals and duality gap at one common tolerance, and the
-  objective against the exact Netlib optima (Koch, 2004) or a three-solver consensus for
-  the MIPLIB relaxations;
+  objective against the exact Netlib optima (Koch, 2004) and exact MIPLIB relaxation
+  optima certified in rational arithmetic with [certkkt](https://github.com/h-a-forster/certkkt)
+  (113 of 114; a three-solver consensus for the rest);
 - **measures performance variability** across row and column permutations, comparing
   iteration-count (algorithmic) variability with time variability and with repeated
   identical runs (machine noise);
@@ -87,6 +88,7 @@ and the run directories live next to the code.
 uv run lpbench fetch --config quick      # Netlib + MIPLIB from netlib.org / miplib.zib.de, checksummed
 uv run lpbench prepare --config quick    # canonical LPs and MPS files in cache/
 uv run lpbench reference --config quick  # optional: recompute the MIPLIB consensus values
+uv run lpbench exact --config quick      # optional: recompute the exact references (~1 h)
 uv run python scripts/run_study.py --config pilot --out runs/pilot   # ~2 min, for the projection
 uv run lpbench plan --config quick --pilot runs/pilot                # unit counts, projected wall time
 uv run python scripts/run_study.py --config quick --out runs/quick --pilot runs/pilot   # resumable
@@ -96,7 +98,8 @@ uv run lpbench report runs/quick --publish docs/results/quick
 
 Instances are downloaded into `cache/` (gitignored); this repository redistributes no
 problem data. `lpbench reference --config quick` recomputes the MIPLIB consensus values
-(committed in `src/lpbench/data/miplib_reference.csv`), and `configs/pilot.toml` is the
+(committed in `src/lpbench/data/miplib_reference.csv`), `lpbench exact --config quick` the
+exact certified optima (`src/lpbench/data/exact_reference.csv`, DESIGN 6.3), and `configs/pilot.toml` is the
 pilot used for the run-time projection. Without `--pilot`, `lpbench run` budgets every unit
 at its hard deadline (332 min for quick), refuses to start beyond the 45 min budget and exits
 with status 3; pass `--pilot runs/pilot` (or `--allow-long`). An interrupted run resumes where
