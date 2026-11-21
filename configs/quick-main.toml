@@ -1,0 +1,38 @@
+# Main grid of the quick study only (same instances, configs, limits and seed as
+# configs/quick.toml, without the eps1e-4, perm and noise blocks): the first slice of the
+# highspy 1.16.0 re-run, since it carries the headline tables (DESIGN 12, item 33).
+name = "quick-main"
+workers = 3
+time_limit_s = 10.0
+hard_deadline_factor = 1.5
+hard_deadline_extra_s = 10.0
+download_cap_bytes = 2_000_000_000
+seed = 20261024
+
+configs = [
+    "highs-dsimplex", "highs-ipx", "highs-pdlp", "highs-hipdlp",
+    "ortools-glop", "ortools-pdlp", "scip-soplex",
+]
+first_order = ["highs-pdlp", "highs-hipdlp", "ortools-pdlp"]
+verify_eps = [1e-4, 1e-5, 1e-6, 1e-8]
+
+[suites.netlib]
+exclude = ["qap8", "qap12", "qap15", "stocfor3", "truss", "standgub"]
+
+[suites.miplib]
+list = "benchmark-v2"
+max_nnz = 100_000
+
+# Main grid: every instance, every config, original order, epsilon = 1e-6.
+[[blocks]]
+name = "main"
+suites = ["netlib", "miplib"]
+configs = "all"
+eps = 1e-6
+perms = [0]
+
+[stats]
+bootstrap_resamples = 10_000
+shift_s = 1.0
+shift_sensitivity_s = [0.1, 10.0]
+penalty = "par1"

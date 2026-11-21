@@ -34,7 +34,8 @@ claims about GPU solvers, multi-threaded performance or commercial solvers.
 ## Results of the quick study
 
 206 instances (92 Netlib, 114 MIPLIB relaxations with at most 1e5 nonzeros), 7 configs,
-10 s per solve, 2388 solves in 21 minutes. Full write-up with limitations:
+10 s per solve, 2388 solves in 21 minutes, run with highspy 1.15.1 (lpbench now pins
+1.16.0; the re-run on it has not been completed). Full write-up with limitations:
 [REPORT.md](REPORT.md). Generated tables: [docs/results/quick/](docs/results/quick/summary.md).
 
 | config | verified at 1e-6 (of 206) | SGM, CPU s [95% CI] |
@@ -61,7 +62,7 @@ claims about GPU solvers, multi-threaded performance or commercial solvers.
   fraction of the limit on Windows (standalone reproduction:
   [docs/repros/](docs/repros/highs-pdlp-time-limit.md)). The quick study enforced that
   config's limit externally. HiGHS 1.16.0 fixes it; lpbench now pins highspy 1.16.0 and
-  passes the limit to the library, and the quick results are not yet re-run on it.
+  passes the limit to the library.
 
 These numbers hold for small instances and a short limit, on one shared Windows machine;
 they say nothing about first-order methods at scale.
@@ -138,7 +139,7 @@ and `performance_profiles.svg`.
   reported as CONFIG_ERROR, and time limits are tested. Upstream behaviour that lpbench
   works around has a test that fails once it changes.
 - **Runner.** Tests for kill-and-resume without duplicate records, hard deadlines, crashing
-  workers, external time limits and config-change detection.
+  workers and config-change detection.
 - **Statistics.** Hand-computed values for SGM, Holm and profiles, plus a coverage check: the
   95% bootstrap intervals cover a known SGM ratio at a rate consistent with 0.95 over 1000
   simulated studies.

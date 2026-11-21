@@ -88,6 +88,21 @@ def test_ratio_interval_basic() -> None:
     assert iv3.lo < iv3.point < iv3.hi
 
 
+def test_bca_counts_resamples_tied_with_the_point_as_half() -> None:
+    # symmetric in log around 1 with many resamples exactly at the point: z0 must be 0
+    a, b = np.ones(10), np.ones(10)
+    a[0] = b[1] = 2.0
+    T = np.column_stack([a, b])
+    iv = S.ratio_interval(T, 0, 1, 0.0, 20000, np.random.default_rng(0), method="bca")
+    assert iv.lo * iv.hi == pytest.approx(1.0, rel=0.02)
+
+
+def test_bca_with_one_instance() -> None:
+    rng = np.random.default_rng(0)
+    iv = S.ratio_interval(np.array([[1.0, 2.0]]), 0, 1, 1.0, 100, rng, method="bca")
+    assert iv.as_tuple() == pytest.approx((0.5, 0.5, 0.5))
+
+
 def test_two_level_bootstrap_reduces_to_one_level_without_replicate_noise() -> None:
     rng = np.random.default_rng(2)
     base = rng.lognormal(0, 1, 50)
@@ -109,6 +124,13 @@ def test_wilcoxon_and_ranks() -> None:
     np.testing.assert_allclose(rs.p_rank.sum(axis=1), 1.0)
     assert S.kendall_tau(np.array([1, 2, 3]), np.array([1, 2, 3])) == pytest.approx(1.0)
     assert S.kendall_tau(np.array([1, 2, 3]), np.array([3, 2, 1])) == pytest.approx(-1.0)
+
+
+def test_rank_stability_splits_exact_ties() -> None:
+    base = np.array([1.0, 2.0, 3.0])
+    T = np.column_stack([base, base, np.full(3, 0.5)])  # configs 0 and 1 identical
+    rs = S.rank_stability(T, 1.0, 200, np.random.default_rng(0))
+    np.testing.assert_allclose(rs.p_rank, [[0, 0.5, 0.5], [0, 0.5, 0.5], [1, 0, 0]])
 
 
 def test_variability_measures() -> None:

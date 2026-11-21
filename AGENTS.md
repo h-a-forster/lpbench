@@ -35,8 +35,8 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
   seeds, versions, machine, wall time); intervals with point estimates; Holm within the
   families of DESIGN section 7. "Claimed optimal but failed verification" is a tolerance
   outcome unless the bug-claim protocol (DESIGN 6.4 item 5) is complete.
-- Never push, create remotes or publish without the owner's go-ahead.
-- Open work lives in `backlog.md`. Change notes go in
+- Never push, create remotes or publish without the maintainer's go-ahead.
+- Change notes go in
   `docs/release-notes-<version>.md`, not in CHANGELOG.md.
 
 ## Architecture map
@@ -63,7 +63,7 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 | `scripts/compare_references.py` | re-scores a run's MIPLIB verdicts with the current references | done |
 | `src/lpbench/stats.py` | SGM, bootstrap, profiles with bands, ranks, Holm | done (M6) |
 | `src/lpbench/report.py` | tables, figures, ranking sensitivity | done (M7) |
-| `configs/pilot.toml`, `configs/quick.toml`, `configs/full.toml` | study configs | done (full not run) |
+| `configs/pilot.toml`, `configs/quick.toml`, `configs/quick-main.toml`, `configs/full.toml` | study configs | done (full not run; quick-main not finished, DESIGN 12 item 33) |
 | `tests/test_solver_env.py` | pinned wheels solve a tiny LP; dual sign convention | done |
 | `tests/test_scaffold.py` | metadata, CLI, provenance hygiene | done |
 | `docs/DESIGN.md` | spec | done |

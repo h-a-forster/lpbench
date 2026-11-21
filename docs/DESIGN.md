@@ -529,7 +529,7 @@ at k = 0 in the pilot. Recorded in the config, not chosen after seeing results.
 
 Each milestone ends with `uv run pytest`, `uv run ruff check .`, `uv run ruff format --check .`
 passing, AGENTS.md "Status and next steps" updated, and a commit. Time estimates assume one
-agent; total about 4.5 h plus the study run.
+developer; total about 4.5 h plus the study run.
 
 | M | Content | Done-check | Est. |
 |---|---|---|---|
@@ -824,8 +824,8 @@ Recorded as they were made during implementation.
     Infeasible before PDLP ran, while 1.16.0 presolve does not reduce it, so cuPDLP-C
     reports "Primal infeasible or unbounded" (INF_OR_UNBD) and HiPDLP runs to the time
     limit; and the 1.16.0 wheel runs HiPO (`solver="hipo"`), which 1.15.1 refused. The
-    published quick results (`docs/results/quick/`) were produced with 1.15.1 and are not
-    re-run under 1.16.0.
+    published quick results (`docs/results/quick/`) were produced with 1.15.1; the re-run
+    under 1.16.0 has not been completed (item 33).
 31. **(2026-11-13) Exact references (section 6.3).** The audit of 2026-11-12 pointed out
     that the MIPLIB references were a consensus of the solvers under test. SoPlex's exact
     mode is not available from PyPI (no SoPlex package; the PySCIPOpt 6.3.0 wheel reports
@@ -844,3 +844,33 @@ Recorded as they were made during implementation.
     re-scores its 1141 MIPLIB records (3246 verdicts at 1e-4, 1e-5, 1e-6, 1e-8) and finds
     0 flips. The quick results are therefore unchanged; MIPLIB units of new runs carry
     `reference_source = "exact"`.
+32. **(audit, 2026-11-21) Ties in the bootstrap statistics.** BCa's bias correction z0 now
+    counts resamples equal to the point estimate as half (the mid-rank rule of
+    `scipy.stats.bootstrap`); before, it counted only those below, which shifted z0 down
+    whenever the bootstrap distribution has atoms (a symmetric case with 10 instances gave
+    [0.758, 1.149] instead of an interval symmetric around 1; measured on 2026-11-21, no
+    committed file produces it; `test_bca_counts_resamples_tied_with_the_point_as_half`
+    asserts the symmetry). With one instance the jackknife is empty: the acceleration is now
+    0 instead of NaN, which made `np.quantile` raise. Rank probabilities now split exact SGM
+    ties between the tied positions; before, the first column won every tie (for example two
+    configs that fail everything at the TL penalty). The percentile intervals and every point
+    estimate are unaffected. `docs/results/quick/` is not regenerated: its BCa column and
+    rank probabilities still come from the old code and will change when the quick study is
+    re-run.
+33. **(audit, 2026-11-21) Main-grid re-run on highspy 1.16.0, not finished.**
+    `configs/quick-main.toml` is the quick study's main block unchanged (206 instances x 7
+    configs = 1442 units, epsilon 1e-6, TL 10 s, same seed; `tests/test_runner.py` keeps it
+    in step with `configs/quick.toml`). It carries the headline tables and is the slice
+    planned to run first; its results go to `docs/results/quick-main/`, separate from the
+    1.15.1 tables in `docs/results/quick/`. No result of it is committed yet. A first attempt
+    was discarded because its process environment held every process to about 5% of one core
+    (a plain Python busy loop got 0.05 CPU seconds per wall second there and 1.00 in a normal
+    process; measured on 2026-11-21, no committed file). Its PDLP units hit the 10 s wall
+    limit with a median of 0.45 CPU s, so its records and its pilot projection (54.1 min for
+    the full quick study, from an uncommitted pilot run) were discarded. A second attempt in a
+    normal process, on a machine shared with other jobs, was stopped unfinished; nothing from
+    it is committed or reported. The run time of the quick study on 1.16.0 is therefore
+    unknown. The published 1.15.1 run is not affected by the CPU limit (its wall/CPU ratio
+    has a median of 1.00). Before a timing run, check that a busy loop gets a full core. When
+    the re-run lands, timing differences against the 1.15.1 tables mix the version change
+    with any change of machine.

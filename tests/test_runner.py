@@ -296,6 +296,15 @@ def test_quick_units_match_design_counts() -> None:
     assert len(noise) == 10 and "miplib/net12" in noise and by_block["noise"] == 40
 
 
+def test_quick_main_is_the_quick_main_block() -> None:
+    """configs/quick-main.toml must stay the quick study's main block, nothing else changed."""
+    quick, main = load_config("quick").raw, load_config("quick-main").raw
+    assert main["name"] == "quick-main"
+    assert main["blocks"] == [b for b in quick["blocks"] if b["name"] == "main"]
+    rest = {k: v for k, v in quick.items() if k not in ("name", "blocks")}
+    assert {k: v for k, v in main.items() if k not in ("name", "blocks")} == rest
+
+
 def test_plan_projection_from_pilot() -> None:
     cfg = load_config("quick")
     from lpbench.instances import all_instances

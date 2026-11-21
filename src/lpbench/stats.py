@@ -112,8 +112,11 @@ def ratio_interval(
     if method != "bca":
         raise ValueError(method)
     # BCa (Efron 1987): bias correction z0 and acceleration from the jackknife
-    z0 = sps.norm.ppf(np.clip(np.mean(boot < point), 1e-12, 1 - 1e-12))
-    jack = np.array([ratio(np.delete(L, i, axis=0)) for i in range(n)])
+    # (resamples equal to the point count half, as in scipy.stats.bootstrap)
+    below = np.mean(boot < point) + 0.5 * np.mean(boot == point)
+    z0 = sps.norm.ppf(np.clip(below, 1e-12, 1 - 1e-12))
+    # jackknife needs n >= 2; with n = 1 every resample equals the point anyway
+    jack = np.array([ratio(np.delete(L, i, axis=0)) for i in range(n)]) if n > 1 else np.zeros(1)
     d = jack.mean() - jack
     acc = float(np.sum(d**3) / (6.0 * np.sum(d**2) ** 1.5)) if np.any(d) else 0.0
     alpha = (1.0 - level) / 2.0
@@ -277,10 +280,12 @@ class RankStability:
 def rank_stability(T: np.ndarray, shift: float, B: int, rng: np.random.Generator) -> RankStability:
     boot = sgm_bootstrap(T, shift, B, rng)  # (B, s)
     s = T.shape[1]
-    ranks = np.argsort(np.argsort(boot, axis=1, kind="stable"), axis=1)  # 0 = fastest
+    # 0-based positions [first, last) per config; exact ties share their positions equally
+    first = sps.rankdata(boot, method="min", axis=1) - 1
+    last = sps.rankdata(boot, method="max", axis=1)
     p_rank = np.zeros((s, s))
     for j in range(s):
-        p_rank[:, j] = (ranks == j).mean(axis=0)
+        p_rank[:, j] = (((first <= j) & (j < last)) / (last - first)).mean(axis=0)
     p_faster = (boot[:, :, None] < boot[:, None, :]).mean(axis=0)
     return RankStability(p_rank, p_faster)
 

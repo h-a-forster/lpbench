@@ -14,6 +14,10 @@ DESIGN section 12, items 17-22, lists what changed. Every config was re-run so t
 numbers come from one run of one code version. The first run's tables stay in git history
 (commit `60a9990`, `docs/results/quick/`); every first-run number below comes from there.
 
+The run used highspy 1.15.1 and consensus MIPLIB references. lpbench has since moved to
+highspy 1.16.0 and exact MIPLIB references (DESIGN section 12, items 30, 31 and 33); the
+re-run on 1.16.0 has not been completed, so nothing in this report comes from it.
+
 ## Setup
 
 | | |
@@ -239,7 +243,9 @@ there only because it compared a Netlib-only ranking with the all-instance one.
    TIME_LIMIT, like every other config). The cause is fixed in HiGHS 1.16.0, released on
    2026-11-11 after this study; the reproduction ends Optimal under every limit with it
    ([docs/upstream/](docs/upstream/highs-pdlp-time-limit.md)). lpbench now pins 1.16.0 and
-   dropped the external limit; this report's numbers are from 1.15.1.
+   dropped the external limit, so `highs-pdlp` gets the in-library limit like every other
+   config. Every number in this report comes from highspy 1.15.1; the re-run on 1.16.0 has
+   not been completed (DESIGN 12, item 33).
 2. **SCIP adds symmetry-breaking constraints to pure LPs** even with presolving off, which
    changes the LP and the length of its dual vector. This is a MIP-oriented default, not a
    bug; lpbench sets `misc/usesymmetry = 0` (DESIGN 12, item 12).
@@ -273,9 +279,11 @@ there only because it compared a Netlib-only ranking with the all-instance one.
   case and the componentwise diagnostic show. The reference objective is what catches
   such answers, so the KKT check is not a sufficient oracle on its own; in this run every
   instance has a reference.
-- **The MIPLIB references in this run are partly circular.** They are consensus values of
-  three of the benchmarked configs (at 1e-9), so they cannot catch an error those three
-  share. Since 2026-11-13 lpbench uses exact optima certified with certkkt for 113 of the
+- **The MIPLIB references of the 1.15.1 run were partly circular.** They are consensus
+  values of three of the benchmarked configs (at 1e-9), so they cannot catch an error those
+  three share. New runs are scored on the exact references instead, so for them this
+  applies only to `neos-3656078-kumeu`, the one instance without a certified optimum.
+  Since 2026-11-13 lpbench uses exact optima certified with certkkt for 113 of the
   114 instances (DESIGN 12, item 31): 60 values differ from the consensus by at most
   3.6e-13 relative and re-scoring this run's 3246 MIPLIB verdicts with them changes none.
   Whether
@@ -285,7 +293,9 @@ there only because it compared a Netlib-only ranking with the all-instance one.
   have a two-config consensus. That made them eligible for the stratified subset and
   changed 7 of its 15 MIPLIB instances relative to the first run. The reference pass ran
   on working trees with uncommitted changes (its records carry `5314ea4-dirty` and
-  `bc4259a-dirty`); the study itself ran on the clean commit `c1fc1a5`.
+  `bc4259a-dirty`); the study itself ran on the clean commit `c1fc1a5`. The subset is now
+  drawn from instances with a committed reference, all 114, so it no longer depends on
+  machine load.
 - **Small subsets.** Permutation results rest on 30 instances (time variability on 3 to 5
   of them) and noise results on 10. Rank probabilities and intervals resample instances
   from this collection; they do not describe LPs in general.
