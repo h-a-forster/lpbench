@@ -436,48 +436,82 @@ def conic_dual(origins: list[Any], y_row: list[Any], y_col: list[Any]) -> list[A
     return z
 
 
-def exact_optimum(
-    lp: CanonicalLP, time_limit_s: float = EXACT_TL_S, budget_s: float = EXACT_BUDGET_S
-) -> ExactResult:
-    """Certify the optimum of ``lp`` exactly (see the module docstring)."""
+@dataclass
+class Certified:
+    """Certificates for one LP: the basis route first, then certkkt's repairs."""
+
+    certificates: list[Any]
+    simplex_status: str
+    basis_size: int
+    pivots: int
+    notes: list[str]
+    infeasible: str = ""  # the Farkas note when the LP is proved infeasible
+
+    def best(self) -> Any:
+        return min(self.certificates, key=lambda c: c.rank()) if self.certificates else None
+
+
+def certify_lp(
+    lp: CanonicalLP,
+    time_limit_s: float = EXACT_TL_S,
+    budget_s: float = EXACT_BUDGET_S,
+    boxed: Any = None,
+) -> Certified:
+    """Exact certificates for ``lp``. HiGHS solves the float data ``lp``; the certificates
+    are for ``boxed`` (default: ``lp`` read exactly), which must have the same shape."""
     from certkkt import certify, repair
     from certkkt.problem import boxed_duals_to_conic
-    from certkkt.rational import q_float_down, q_float_up
     from certkkt.sparse import BudgetExceeded
 
-    t0 = time.perf_counter()
-    boxed = to_boxed(lp)
+    if boxed is None:
+        boxed = to_boxed(lp)
+    elif (boxed.m, boxed.n) != lp.A.shape:
+        raise ValueError(f"exact data has shape {(boxed.m, boxed.n)}, float data {lp.A.shape}")
     problem, origins = boxed.to_conic()
     sx = _simplex(lp, time_limit_s)
     deadline = time.perf_counter() + budget_s
     nbasic = sum(1 for s in sx.col_basic or [] if s == _codes()["basic"])
-    certs = []
-    notes = []
-    pivots = 0
+    out = Certified([], sx.status, nbasic, 0, [])
     if sx.col_basic is not None and sx.row_basic is not None:
         try:
             eb = ExactBasis(boxed, sx.col_basic, sx.row_basic)
             xa, y, d = eb.optimise(deadline, MAX_PIVOTS)
-            pivots = eb.pivots
+            out.pivots = eb.pivots
             z = conic_dual(origins, [-v for v in y], [-v for v in d[: boxed.n]])
-            certs.append(certify(problem, xa[: boxed.n], z, method="basis"))
+            out.certificates.append(certify(problem, xa[: boxed.n], z, method="basis"))
         except Infeasible as exc:
-            return ExactResult("infeasible", "basis", None, None, None, sx.status, nbasic,
-                               time.perf_counter() - t0, str(exc), eb.pivots)  # fmt: skip
+            out.pivots = eb.pivots
+            out.infeasible = str(exc)
+            return out
         except (ValueError, ArithmeticError, BudgetExceeded) as exc:
-            notes.append(f"basis: {type(exc).__name__}: {exc}")
+            out.notes.append(f"basis: {type(exc).__name__}: {exc}")
+    certs = out.certificates
     if (not certs or certs[0].level != "optimal") and sx.x is not None:
         assert sx.y is not None and sx.d is not None
         zf = boxed_duals_to_conic(origins, -sx.y, -sx.d)
         left = max(1.0, deadline - time.perf_counter())
-        out = repair(problem, sx.x, zf, methods=("as_is", "active_set", "fixed"), time_budget=left)
-        certs.extend(out.certificates)
-        notes.extend(f"{k}: {v}" for k, v in out.notes.items())
+        rep = repair(problem, sx.x, zf, methods=("as_is", "active_set", "fixed"), time_budget=left)
+        certs.extend(rep.certificates)
+        out.notes.extend(f"{k}: {v}" for k, v in rep.notes.items())
+    return out
+
+
+def exact_optimum(
+    lp: CanonicalLP, time_limit_s: float = EXACT_TL_S, budget_s: float = EXACT_BUDGET_S
+) -> ExactResult:
+    """Certify the optimum of ``lp`` exactly (see the module docstring)."""
+    from certkkt.rational import q_float_down, q_float_up
+
+    t0 = time.perf_counter()
+    cd = certify_lp(lp, time_limit_s, budget_s)
     seconds = time.perf_counter() - t0
-    if not certs:
-        return ExactResult("no_basis", "", None, None, None, sx.status, nbasic, seconds,
-                           "; ".join(notes))  # fmt: skip
-    best = min(certs, key=lambda c: c.rank())
+    if cd.infeasible:
+        return ExactResult("infeasible", "basis", None, None, None, cd.simplex_status,
+                           cd.basis_size, seconds, cd.infeasible, cd.pivots)  # fmt: skip
+    best = cd.best()
+    if best is None:
+        return ExactResult("no_basis", "", None, None, None, cd.simplex_status, cd.basis_size,
+                           seconds, "; ".join(cd.notes))  # fmt: skip
     level = best.level
     # int / int is correctly rounded, so this is the float nearest the exact optimum
     objective = None
@@ -486,8 +520,8 @@ def exact_optimum(
     lower = q_float_down(best.dobj) if level in LEVELS_USED else None
     upper = q_float_up(best.pobj) if level in LEVELS_USED else None
     return ExactResult(
-        level, best.method, objective, lower, upper, sx.status, nbasic, seconds,
-        "; ".join(notes), pivots,
+        level, best.method, objective, lower, upper, cd.simplex_status, cd.basis_size, seconds,
+        "; ".join(cd.notes), cd.pivots,
     )  # fmt: skip
 
 

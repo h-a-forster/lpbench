@@ -1,0 +1,21 @@
+# MIP claim pilot (DESIGN 13): the 20 MIPLIB 2017 benchmark instances with the fewest
+# nonzeros (src/lpbench/data/miplib_benchmark.csv; the 21st has 2600), each solver once,
+# one thread, default options except the time limit and seed.
+#
+#   uv run lpbench fetch --config quick --suite miplib
+#   uv run lpbench mip run --config configs/mip-pilot.toml
+#   uv run lpbench mip check runs/mip-pilot
+#   uv run lpbench mip report runs/mip-pilot
+
+name = "mip-pilot"
+workers = 3
+time_limit_s = 60
+seed = 0
+solvers = ["highs", "scip"]
+completion_budget_s = 600
+instances = [
+    "markshare_4_0", "markshare2", "gen-ip054", "enlight_hard", "timtab1",
+    "pk1", "gen-ip002", "sp150x300d", "neos-3046615-murg", "neos859080",
+    "neos-3754480-nidda", "mas76", "neos-2657525-crna", "mas74", "glass4",
+    "exp-1-500-5-5", "neos5", "fhnw-binpack4-4", "supportcase26", "tr12-30",
+]

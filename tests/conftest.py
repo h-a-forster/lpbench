@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
+
+
+@pytest.fixture()
+def cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """An empty instance cache (``LPBENCH_CACHE``) under the test's temporary directory."""
+    root = tmp_path / "cache"
+    monkeypatch.setenv("LPBENCH_CACHE", str(root))
+    return root
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

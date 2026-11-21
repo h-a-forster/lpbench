@@ -260,6 +260,46 @@ def _cmd_report(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_mip_run(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from lpbench.mip.study import MipRunner, build_mip_units, load_mip_config
+    from lpbench.runner import file_logger
+
+    cfg = load_mip_config(args.config)
+    out = Path(args.out or f"runs/{cfg.name}")
+    log = file_logger(out / "progress.log")
+    units = build_mip_units(cfg)
+    log(
+        f"{len(units)} units ({len(cfg.instances)} instances x {len(cfg.solvers)} solvers), "
+        f"time limit {cfg.time_limit_s:g} s, hard deadline {cfg.hard_deadline_s:g} s"
+    )
+    runner = MipRunner(cfg, out, units, workers=args.workers, provenance=provenance(), log=log)
+    return _run_exit(runner.run(max_units=args.max_units), log)
+
+
+def _cmd_mip_check(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from lpbench.mip.study import check_run
+    from lpbench.runner import file_logger
+
+    run_dir = Path(args.run_dir)
+    log = file_logger(run_dir / "check.log")
+    check_run(run_dir, workers=args.workers or 3, log=log)
+    return 0
+
+
+def _cmd_mip_report(args: argparse.Namespace) -> int:
+    from pathlib import Path
+
+    from lpbench.mip.report import report_run
+
+    out = report_run(Path(args.run_dir), Path(args.publish) if args.publish else None)
+    print((out / "summary.md").read_text(encoding="utf-8"))
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="lpbench",
@@ -324,6 +364,23 @@ def build_parser() -> argparse.ArgumentParser:
         "--bootstrap", type=_positive_int, help="bootstrap resamples (default: config)"
     )
     p_report.set_defaults(func=_cmd_report)
+
+    p_mip = sub.add_parser("mip", help="exactly classified claims of MIP solvers (DESIGN 13)")
+    mip = p_mip.add_subparsers(dest="mip_command", metavar="MIP_COMMAND", required=True)
+    p_mrun = mip.add_parser("run", help="record the solvers' claims (checkpointed, resumable)")
+    p_mrun.add_argument("--config", required=True, help="path of a MIP config (configs/mip-*.toml)")
+    p_mrun.add_argument("--out", help="run directory (default runs/<config name>)")
+    p_mrun.add_argument("--workers", type=_positive_int, help="worker processes (at most 3)")
+    p_mrun.add_argument("--max-units", type=_positive_int, help="stop after this many units")
+    p_mrun.set_defaults(func=_cmd_mip_run)
+    p_mcheck = mip.add_parser("check", help="exact checks and claims.jsonl for a run directory")
+    p_mcheck.add_argument("run_dir")
+    p_mcheck.add_argument("--workers", type=_positive_int, help="processes (default 3)")
+    p_mcheck.set_defaults(func=_cmd_mip_check)
+    p_mrep = mip.add_parser("report", help="E1-E4 per solver with Wilson intervals")
+    p_mrep.add_argument("run_dir")
+    p_mrep.add_argument("--publish", help="output directory (default RUN_DIR/report)")
+    p_mrep.set_defaults(func=_cmd_mip_report)
     return parser
 
 

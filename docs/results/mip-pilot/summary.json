@@ -1,0 +1,213 @@
+{
+ "check_errors": [],
+ "config_hash": "9d143e93c5e3dca3",
+ "data_rounding_flips": [
+  {
+   "fields": [
+    "primal_class"
+   ],
+   "unit_id": "mip__mas74__scip__s0"
+  }
+ ],
+ "elapsed_wall_s": 713.0,
+ "estimand_definitions": {
+  "E1": "returned solution not exactly feasible (class P1-P3), per unit with a solution",
+  "E2": "returned solution beyond the solver's own tolerances (P2-P3), per unit with a solution",
+  "E3": "rounded solution has no exactly feasible completion, per unit with a solution",
+  "E4": "dual claim refuted with severity above 1e-09, per unit with a dual claim"
+ },
+ "full_set_projection": {
+  "assumption": "units on instances outside the pilot run to the time limit",
+  "instances": 240,
+  "projected_wall_s": 9487.897044370618,
+  "solvers": [
+   "highs",
+   "scip"
+  ],
+  "time_limit_s": 60.0,
+  "units": 480,
+  "workers": 3
+ },
+ "per_solver": {
+  "highs": {
+   "completions": {
+    "feasible": 17,
+    "none": 3
+   },
+   "estimands": {
+    "E1": {
+     "events": 15,
+     "rate": 0.8823529411764706,
+     "resolved": 17,
+     "unresolved": 0,
+     "wilson95": [
+      0.6566364940511412,
+      0.9671202262362074
+     ],
+     "wilson95_unresolved_as_events": null
+    },
+    "E2": {
+     "events": 0,
+     "rate": 0.0,
+     "resolved": 17,
+     "unresolved": 0,
+     "wilson95": [
+      0.0,
+      0.18431813500885183
+     ],
+     "wilson95_unresolved_as_events": null
+    },
+    "E3": {
+     "events": 0,
+     "rate": 0.0,
+     "resolved": 17,
+     "unresolved": 0,
+     "wilson95": [
+      0.0,
+      0.18431813500885183
+     ],
+     "wilson95_unresolved_as_events": null
+    },
+    "E4": {
+     "events": 0,
+     "rate": 0.0,
+     "resolved": 18,
+     "unresolved": 2,
+     "wilson95": [
+      0.0,
+      0.17587922364665765
+     ],
+     "wilson95_unresolved_as_events": [
+      0.027866481213768224,
+      0.3010336452284873
+     ]
+    }
+   },
+   "median_cpu_per_wall": 0.17,
+   "missing_fields": {},
+   "objective_misstated": 0,
+   "primal_classes": {
+    "P0": 2,
+    "P1": 15
+   },
+   "statuses": {
+    "INFEASIBLE": 1,
+    "OPTIMAL": 3,
+    "TIME_LIMIT": 16
+   },
+   "units": 20
+  },
+  "scip": {
+   "completions": {
+    "feasible": 17,
+    "infeasible": 1,
+    "none": 2
+   },
+   "estimands": {
+    "E1": {
+     "events": 7,
+     "rate": 0.3888888888888889,
+     "resolved": 18,
+     "unresolved": 0,
+     "wilson95": [
+      0.2030524657216362,
+      0.613809583977621
+     ],
+     "wilson95_unresolved_as_events": null
+    },
+    "E2": {
+     "events": 0,
+     "rate": 0.0,
+     "resolved": 18,
+     "unresolved": 0,
+     "wilson95": [
+      0.0,
+      0.17587922364665765
+     ],
+     "wilson95_unresolved_as_events": null
+    },
+    "E3": {
+     "events": 1,
+     "rate": 0.05555555555555555,
+     "resolved": 18,
+     "unresolved": 0,
+     "wilson95": [
+      0.009875190978303097,
+      0.25757300781872594
+     ],
+     "wilson95_unresolved_as_events": null
+    },
+    "E4": {
+     "events": 0,
+     "rate": 0.0,
+     "resolved": 18,
+     "unresolved": 2,
+     "wilson95": [
+      0.0,
+      0.17587922364665765
+     ],
+     "wilson95_unresolved_as_events": [
+      0.027866481213768224,
+      0.3010336452284873
+     ]
+    }
+   },
+   "median_cpu_per_wall": 0.16,
+   "missing_fields": {},
+   "objective_misstated": 0,
+   "primal_classes": {
+    "P0": 11,
+    "P1": 7
+   },
+   "statuses": {
+    "INFEASIBLE": 1,
+    "OPTIMAL": 3,
+    "TIME_LIMIT": 16
+   },
+   "units": 20
+  }
+ },
+ "provenance": {
+  "distributions": {
+   "highspy": "1.16.0",
+   "numpy": "2.5.4",
+   "ortools": "9.15.6755",
+   "pyscipopt": "6.3.0",
+   "scipy": "1.18.1"
+  },
+  "executable_basename": "python.exe",
+  "git": "b3e0181e9698",
+  "lpbench": "0.1.0",
+  "platform": {
+   "implementation": "CPython",
+   "logical_cpus": 20,
+   "machine": "AMD64",
+   "processor": "Intel64 Family 6 Model 151 Stepping 2, GenuineIntel",
+   "python": "3.13.13",
+   "release": "11",
+   "system": "Windows"
+  },
+  "solver_libraries": {
+   "highs": "1.16.0",
+   "scip": "10.0"
+  }
+ },
+ "refutations_above_1e-9": [],
+ "seed": 0,
+ "severity_bins": [
+  ">0",
+  ">1e-09",
+  ">1e-06",
+  ">0.0001"
+ ],
+ "solver_versions": [
+  "highs 1.16.0",
+  "scip SCIP 10.0"
+ ],
+ "study": "mip-pilot",
+ "time_limit_s": 60.0,
+ "unit_wall_s_total": 2039.9743314998923,
+ "units_expected": 40,
+ "units_with_claims": 40,
+ "workers": 3
+}

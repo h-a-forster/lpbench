@@ -57,6 +57,10 @@ def _peak_rss_kb() -> int | None:
 
 def execute(task: dict[str, Any]) -> dict[str, Any]:
     """Solve and verify one unit. Never raises: failures become ERROR records."""
+    if task.get("kind") == "mip":  # a MIP claim unit (lpbench.mip): claims, no verification
+        from lpbench.mip.adapters import execute as execute_mip
+
+        return execute_mip(task)
     from pathlib import Path
 
     import numpy as np

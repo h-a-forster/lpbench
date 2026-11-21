@@ -64,6 +64,8 @@ and performance profiles, and an analysis of what changes the ranking. No GPU cl
 | `src/lpbench/stats.py` | SGM, bootstrap, profiles with bands, ranks, Holm | done (M6) |
 | `src/lpbench/report.py` | tables, figures, ranking sensitivity | done (M7) |
 | `configs/pilot.toml`, `configs/quick.toml`, `configs/quick-main.toml`, `configs/full.toml` | study configs | done (full not run; quick-main not finished, DESIGN 12 item 33) |
+| `src/lpbench/mip/` | MIP claims (DESIGN 13): exact MPS reader, primal classes, exact completion, refutations, `lpbench mip run/check/report` | HiGHS and SCIP; CBC planned (DESIGN 13.8) |
+| `configs/mip-pilot.toml` | MIP pilot: 20 smallest MIPLIB benchmark instances, 60 s | done |
 | `tests/test_solver_env.py` | pinned wheels solve a tiny LP; dual sign convention | done |
 | `tests/test_scaffold.py` | metadata, CLI, provenance hygiene | done |
 | `docs/DESIGN.md` | spec | done |
@@ -83,6 +85,13 @@ on a loaded one (2026-10-30): each runner test spawns one worker pool per solver
 
 CI (`.github/workflows/ci.yml`) runs on pushes to `main`, `pull_request` and `workflow_dispatch`:
 ubuntu py3.11, ubuntu py3.13, windows py3.13, plus a lint job.
+
+MIP claims (DESIGN 13): `uv run pytest tests/test_mip.py --runslow` (the slow part checks
+the exact reader against HiGHS on every pilot instance and needs `lpbench fetch`). Invariants
+the code cannot show: integrality is checked absolutely, never scaled by |x_j| (MIPLIB's
+`model.cpp`; its README calls all tolerances absolute, which is wrong only for rows and
+bounds); solver tolerances are read back at run time, never hard-coded; a refutation is
+never called a bug before DESIGN 6.4 item 5 is complete.
 
 ## How to run the study
 

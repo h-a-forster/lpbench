@@ -123,6 +123,26 @@ primary ranking: ortools-glop < highs-dsimplex < highs-ipx < scip-soplex < ortoo
 The report writes `summary.md` (all tables), `results.json`, `units.csv` (one row per solve)
 and `performance_profiles.svg`.
 
+## MIP claims (pilot)
+
+A second study on the same harness records what MIP solvers claim on MIPLIB 2017
+instances (status, solution, primal and dual bound, effective tolerances) and classifies
+every claim exactly: the solution's feasibility class against the solver's own and
+MIPLIB's tolerances, an exact completion of its rounded integer part, and refutations of
+dual bounds by exactly feasible points (DESIGN section 13). The pilot covers the 20
+smallest benchmark instances with HiGHS and SCIP (CBC support is planned); it makes no bug
+claims. Its results are in
+[docs/results/mip-pilot/summary.md](docs/results/mip-pilot/summary.md). The pilot's solver
+processes got well under one CPU second per wall second (DESIGN section 12, item 34), so
+which units reached the 60 s limit says nothing about solver speed.
+
+```sh
+uv run lpbench fetch --config quick --suite miplib
+uv run lpbench mip run --config configs/mip-pilot.toml
+uv run lpbench mip check runs/mip-pilot      # writes runs/mip-pilot/claims.jsonl
+uv run lpbench mip report runs/mip-pilot     # E1-E4 per solver with Wilson intervals
+```
+
 ## How the harness is validated
 
 - **Verifier.** Exact values on hand-built LPs with every row and bound type (minimisation

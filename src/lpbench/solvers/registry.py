@@ -30,6 +30,10 @@ def make_adapter(config: str) -> Adapter:
 
 def solver_family(config: str) -> str:
     """The solver library a config loads. Each family gets its own processes (DESIGN 4.2)."""
+    if config.startswith("mip-"):  # MIP claim units (lpbench.mip)
+        from lpbench.mip.adapters import solver_family as mip_family
+
+        return mip_family(config.removeprefix("mip-"))
     if config.startswith(("highs-", "test-")):  # test-ok solves with HiGHS
         return "highs"
     if config.startswith("ortools-"):

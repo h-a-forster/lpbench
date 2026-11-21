@@ -62,13 +62,6 @@ def _instances(root: Path, n: int = 4) -> list[Instance]:
     return out
 
 
-@pytest.fixture()
-def cache(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
-    root = tmp_path / "cache"
-    monkeypatch.setenv("LPBENCH_CACHE", str(root))
-    return root
-
-
 def _units(insts: list[Instance], configs: list[str], ks: tuple[int, ...] = (0,)) -> list[Unit]:
     return [Unit("main", i, k, c, 1e-6) for i in insts for k in ks for c in configs]
 

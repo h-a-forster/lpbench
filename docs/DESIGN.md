@@ -874,3 +874,152 @@ Recorded as they were made during implementation.
     has a median of 1.00). Before a timing run, check that a busy loop gets a full core. When
     the re-run lands, timing differences against the 1.15.1 tables mix the version change
     with any change of machine.
+34. **(2026-11-21) MIP claims, milestone 1 (section 13).** New package `lpbench.mip`
+    and `lpbench mip run|check|report`. Shared code changed without changing LP behaviour:
+    `exact.exact_optimum` is split so that `exact.certify_lp` can certify an LP whose exact
+    data are given separately from the float data HiGHS solves (the MIP completion passes
+    the MPS decimals); the solver registry routes `mip-*` configs to their family and the
+    worker routes MIP tasks to `mip.adapters.execute`; `MipRunner` subclasses the runner
+    for MIP tasks and records. The pilot runs HiGHS and SCIP only (13.8). In the pilot
+    environment the solver processes got well under one CPU second per wall second (median
+    per solver in the report) while a Python busy loop in the same environment got 0.97;
+    the cause is not known. It changes which units reach the 60 s wall limit, not any
+    exact verdict, and the report states the ratio.
+
+## 13. MIP claims (`lpbench.mip`)
+
+A separate study on the same harness: what MIP solvers claim about MIPLIB 2017 instances,
+classified exactly. It shares the runner, the workers, the instance cache and the checksum
+manifest with the LP study and changes none of its code paths or results.
+
+### 13.1 Scope (milestone 1)
+
+- Instances: the 20 MIPLIB 2017 benchmark instances with the fewest nonzeros
+  (`configs/mip-pilot.toml`), read from the files `lpbench fetch` downloads and checks
+  against `src/lpbench/data/checksums.csv`. Nothing new is fetched; no instance, solution
+  or `.solu` file is committed.
+- Solvers: HiGHS 1.16.0 (highspy) and SCIP 10 (PySCIPOpt 6.3.0), in-process, one thread,
+  default options except the time limit (60 s wall) and the seed (0); one solver family
+  per worker process (4.2). CBC 2.10.13 through `cylp==0.94.3` is planned; 13.8 records
+  why it is not in this milestone.
+- Not in this milestone: exact MIP solvers, VIPR certificates, MIPLIB's `solutions.zip`
+  and `.solu` values. No result is called a solver bug (13.6).
+
+### 13.2 Claims (`mip/adapters.py`)
+
+Per (solver, instance) unit the worker records the status (OPTIMAL, INFEASIBLE,
+UNBOUNDED, INF_OR_UNBD, TIME_LIMIT, OTHER), the best solution by column name in the
+original space (HiGHS: the solution of the model as read; SCIP: `getBestSol()` evaluated
+on the original variables), the primal bound, the dual bound (HiGHS `mip_dual_bound`,
+SCIP `getDualbound()`) and the gap as reported, and the effective tolerances read back
+from the solver at run time (HiGHS options such as `mip_feasibility_tolerance`; SCIP
+parameters such as `numerics/feastol`). Tolerances are never hard-coded. A field the
+status calls for but the solver does not provide is `null` and listed in `missing`;
+nothing is derived in its place. An infeasibility claim is a dual claim of +infinity.
+
+### 13.3 Exact data and the primal classes (`mip/mps.py`, `mip/check.py`)
+
+The exact data are the MPS decimals read as rationals (`0.1` is 1/10). The reader follows
+the conventions HiGHS 1.16 and SCIP 10 share (checked on hand-written files): an integer
+column without any BOUNDS entry is binary; a negative `UP` sets only the upper bound;
+`RANGES` on an `E` row extends it upward for R > 0 and downward for R < 0; the objective
+row's RHS is minus the objective constant; `SC` bounds and unknown sections are errors.
+Every rational of the 20 pilot instances rounds to the double HiGHS holds after reading
+the same file (slow test). Every check is repeated on the float64 data the solvers
+received; a verdict that differs between the two is attributed to data rounding and
+listed.
+
+The solution's doubles are read as rationals and every violation is computed exactly.
+The tolerance model follows MIPLIB 2017's solution checker (`model.cpp`, re-implemented
+from its description):
+
+- rows: violation <= tol x max(1, |side|, positive part of the activity, negative part of
+  the activity);
+- bounds: violation <= tol x max(1, |bound|, |x_j|);
+- integrality: |x_j - round(x_j)| <= tol, **absolute, not scaled**;
+- tol = 1e-4 for all three (the test scripts' linear and integrality tolerance).
+
+Primal classes: **P0** exactly feasible; **P1** violated, but within the solver's own
+tolerances as that solver applies them (HiGHS: rows, bounds and integrality absolute
+against `mip_feasibility_tolerance`; SCIP: rows and bounds by relative difference
+violation / max(1, |activity|, |side|) against `numerics/feastol`, integrality absolute);
+**P2** beyond its own, within MIPLIB's 1e-4; **P3** beyond MIPLIB's. The claimed primal
+bound is compared with c'x + c0 (relative difference to max(1, |claim|), flagged above
+1e-6).
+
+### 13.4 Exact completion (`mip/complete.py`)
+
+The integer variables are rounded to the nearest integers and fixed; a rounded value
+outside its bounds, or a pure-integer point violating a row, is `infeasible` without an
+LP. Otherwise the LP in the continuous variables is solved exactly with
+`exact.certify_lp` (6.3; HiGHS proposes a basis on the float data, the certificate is for
+the exact data) with a budget of 600 s: `feasible` with the exact objective `z_R` of the
+best certified feasible point (the LP optimum when certkkt certifies optimality),
+`infeasible` when an exact Farkas certificate exists (from the exact basis pivots, or from
+HiGHS's dual ray read as rationals and checked exactly), `unknown` otherwise, `none` when
+the unit returned no solution.
+
+### 13.5 Witnesses and refutations (`mip/claims.py`)
+
+All values in the minimisation sense (a maximisation instance's claims are negated on
+read). The witness W of an instance is the least `z_R` over all feasible completions of
+all its units, any solver. A dual claim D is refuted when D > W, with severity
+s = (D - W) / max(1, |W|) in the bins s > 0, > 1e-9, > 1e-6, > 1e-4 (fixed before any
+result). Without a witness or without a dual claim the refutation is unresolved.
+
+### 13.6 Estimands and intervals
+
+Per solver, over the units in each denominator:
+
+- **E1** the returned solution is not exactly feasible (P1-P3); units with a solution.
+- **E2** the returned solution is beyond the solver's own tolerances (P2-P3); units with
+  a solution.
+- **E3** the rounded solution has no exactly feasible completion; units with a solution.
+- **E4** the dual claim is refuted with severity above 1e-9; units with a dual claim.
+
+Rates carry 95% Wilson intervals (zero events: the upper bound 3.84/(n + 3.84)).
+Unresolved units (completion `unknown`, no witness) are counted, never dropped: the
+report gives them and the interval with every unresolved unit counted as an event. A
+refutation is evidence that a claim is wrong for the exact data, not a solver bug:
+nothing is called a bug before the protocol of 6.4 item 5 is complete, and this milestone
+makes no bug claims. Refutations above 1e-9 are listed for follow-up.
+
+### 13.7 Running and verifying
+
+```sh
+uv run lpbench fetch --config quick --suite miplib
+uv run lpbench mip run --config configs/mip-pilot.toml   # runs/mip-pilot/units, progress.log
+uv run lpbench mip check runs/mip-pilot                   # check/<unit>.json, claims.jsonl
+uv run lpbench mip report runs/mip-pilot                  # report/summary.{md,json}
+uv run pytest tests/test_mip.py --runslow                 # includes the reader cross-check
+```
+
+`mip run` uses lpbench's runner (persistent workers, hard deadline 1.5 x TL + 10 s, one
+atomic record per unit, resume by unit id); `mip check` checkpoints one file per unit and
+skips units already checked against the same record. The report also gives each solver's
+median solve CPU seconds per wall second (a single-threaded solve on a free core is near
+1; time limits are wall time) and a projection of the full benchmark set's wall time
+(`planning.lpt_makespan`; pilot units keep their measured time, all others run to the
+time limit).
+
+### 13.8 CBC and its vetting record
+
+`cylp==0.94.3` (links Cbc 2.10.13) was reviewed as source before installation and passed:
+canonical repository `coin-or/CyLP`, tag `v0.94.3` (commit `0a8b1e0c`), PyPI history back
+to earlier 0.9x releases. Its Windows wheel build downloads the Cbc release zip with
+`curl` and no checksum (`pyproject.toml` lines 63-65 at the tag; coinbrew pinned to
+`f624b48e`, `./coinbrew fetch Cbc@2.10.13` at lines 48-49), so the asset was checked
+independently:
+
+- Cbc release asset `Cbc-releases.2.10.13-w64-msvc17-md.zip`: 18,197,108 bytes, SHA-256
+  `b9702ad7501b4249a9721984ce3c6dc8fb9b6cfb995f42d493a5bd54b8f42a74`, equal to the
+  GitHub release API's `size` and `digest`.
+- Wheel `cylp-0.94.3-cp313-cp313-win_amd64.whl`: 4,729,679 bytes, SHA-256
+  `ba610e620f7f9e034c6d9869698c062410b708603ab25f5dbdc1e72a4376b7bc`, equal to PyPI's
+  listing; no `.pth` files or executables; extension modules and one signed MSVC runtime
+  DLL; no long or obfuscated lines.
+
+CBC support is planned. cylp 0.94.3 was released on 2026-11-15, and the project adds a
+dependency only once its release is at least a week old, so the pilot has two solvers and
+40 units. CBC's dual bound is to be read as `bestPossibleObjValue`, which its adapter test
+is to confirm before CBC claims are classified.
